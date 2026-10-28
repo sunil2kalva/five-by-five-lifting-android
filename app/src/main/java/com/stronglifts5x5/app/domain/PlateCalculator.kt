@@ -46,9 +46,8 @@ object PlateCalculator {
     )
 
     private val METRIC_PLATES = listOf(
-        PlateSpec(25.0, "25", 0xFFDC2626, 1.00f),   // IWF Red
-        PlateSpec(20.0, "20", 0xFF2563EB, 0.94f),   // IWF Blue
-        PlateSpec(15.0, "15", 0xFFEAB308, 0.84f),   // IWF Yellow
+        PlateSpec(20.0, "20", 0xFF2563EB, 1.00f),   // IWF Blue
+        PlateSpec(15.0, "15", 0xFFEAB308, 0.86f),   // IWF Yellow
         PlateSpec(10.0, "10", 0xFF16A34A, 0.72f),   // IWF Green
         PlateSpec(5.0, "5", 0xFFE5E7EB, 0.58f),     // IWF White
         PlateSpec(2.5, "2.5", 0xFF374151, 0.48f),   // Black
