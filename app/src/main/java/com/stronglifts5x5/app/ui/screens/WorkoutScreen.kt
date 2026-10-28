@@ -45,17 +45,23 @@ import androidx.compose.ui.unit.sp
 import com.stronglifts5x5.app.data.local.WorkoutSetEntity
 import com.stronglifts5x5.app.data.model.ExerciseType
 import com.stronglifts5x5.app.data.model.WeightUnit
+import com.stronglifts5x5.app.data.model.WorkoutType
 import com.stronglifts5x5.app.domain.PlateCalculator
 import com.stronglifts5x5.app.domain.ProgressionAction
 import com.stronglifts5x5.app.ui.StrengthUiState
 import com.stronglifts5x5.app.ui.components.PlateCalculatorSheet
 import com.stronglifts5x5.app.ui.components.RestTimerBanner
+import com.stronglifts5x5.app.ui.components.WorkoutBuilderSheet
+import com.stronglifts5x5.app.ui.components.WorkoutPullDownSelector
 import com.stronglifts5x5.app.ui.theme.AmberWarning
 import com.stronglifts5x5.app.ui.theme.EmeraldSuccess
 
 @Composable
 fun WorkoutScreen(
     uiState: StrengthUiState,
+    onSelectWorkoutType: (WorkoutType) -> Unit,
+    onSaveWorkoutTemplate: (WorkoutType, String, List<ExerciseType>, Boolean) -> Unit,
+    onSaveCustomExercise: (ExerciseType, String, Int, Int, Double, Double) -> Unit,
     onStartWorkout: () -> Unit,
     onTapSetBubble: (Long) -> Unit,
     onUpdateExerciseWeight: (ExerciseType, Double) -> Unit,
@@ -70,8 +76,9 @@ fun WorkoutScreen(
     val unit = uiState.preferences.weightUnit
     val barWeightLb = uiState.preferences.barbellWeightLb
 
-    var showWarmupMap = remember { mutableStateMapOf<ExerciseType, Boolean>() }
+    val showWarmupMap = remember { mutableStateMapOf<ExerciseType, Boolean>() }
     var selectedPlateExercise by remember { mutableStateOf<ExerciseType?>(null) }
+    var editingWorkoutType by remember { mutableStateOf<WorkoutType?>(null) }
     var bodyweightInput by remember { mutableStateOf("") }
     var notesInput by remember { mutableStateOf("") }
 
@@ -81,7 +88,7 @@ fun WorkoutScreen(
             onDismissRequest = onDismissSummary,
             title = {
                 Text(
-                    text = "${summary.workoutType.title} Complete!",
+                    text = "${summary.workoutTitle} Complete!",
                     fontWeight = FontWeight.ExtraBold
                 )
             },
@@ -93,13 +100,14 @@ fun WorkoutScreen(
                         color = MaterialTheme.colorScheme.primary
                     )
                     summary.progressionResults.forEach { res ->
+                        val name = uiState.exerciseDisplayName(res.exercise)
                         val statusLine = when (res.action) {
                             ProgressionAction.INCREMENTED ->
-                                "${res.exercise.displayName}: ${unit.format(res.previousWeightLb)} → ${unit.format(res.nextWeightLb)} (Progress!)"
+                                "$name: ${unit.format(res.previousWeightLb)} → ${unit.format(res.nextWeightLb)} (Progress!)"
                             ProgressionAction.REPEATED_AFTER_FAILURE ->
-                                "${res.exercise.displayName}: Repeat ${unit.format(res.nextWeightLb)} next time (Strike ${res.nextConsecutiveFailures}/3)"
+                                "$name: Repeat ${unit.format(res.nextWeightLb)} next time (Strike ${res.nextConsecutiveFailures}/3)"
                             ProgressionAction.DELOADED_10_PERCENT ->
-                                "${res.exercise.displayName}: 10% Deload → ${unit.format(res.nextWeightLb)} (3 strikes reached)"
+                                "$name: 10% Deload → ${unit.format(res.nextWeightLb)} (3 strikes reached)"
                         }
                         Text(
                             text = "• $statusLine",
@@ -127,7 +135,23 @@ fun WorkoutScreen(
         )
     }
 
+    editingWorkoutType?.let { typeToEdit ->
+        WorkoutBuilderSheet(
+            initialWorkoutType = typeToEdit,
+            uiState = uiState,
+            onDismiss = { editingWorkoutType = null },
+            onSaveTemplate = { type, title, exercises, enabled ->
+                onSaveWorkoutTemplate(type, title, exercises, enabled)
+            },
+            onSaveCustomExercise = onSaveCustomExercise
+        )
+    }
+
     if (active == null) {
+        val nextTemplate = uiState.templateFor(uiState.nextWorkoutType)
+        val customNames = remember(uiState.exerciseStates) {
+            uiState.exerciseStates.mapValues { it.value.effectiveName() }
+        }
         Column(
             modifier = Modifier
                 .fillMaxSize()
@@ -136,13 +160,20 @@ fun WorkoutScreen(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Ready for ${uiState.nextWorkoutType.title}?",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
+                text = "Select Workout to Start:",
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(8.dp))
+            WorkoutPullDownSelector(
+                currentWorkoutType = uiState.nextWorkoutType,
+                uiState = uiState,
+                onSelectWorkoutType = onSelectWorkoutType,
+                onOpenWorkoutBuilder = { editingWorkoutType = it }
+            )
+            Spacer(modifier = Modifier.height(10.dp))
             Text(
-                text = uiState.nextWorkoutType.subtitle,
+                text = nextTemplate.subtitle(customNames),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -153,13 +184,23 @@ fun WorkoutScreen(
                     .fillMaxWidth()
                     .height(52.dp)
             ) {
-                Text("Start ${uiState.nextWorkoutType.title} Now")
+                Text("Start ${nextTemplate.customTitle} Now")
+            }
+            Spacer(modifier = Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = { editingWorkoutType = uiState.nextWorkoutType },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("+ Create / Customize Workouts (A, B, C...)")
             }
         }
         return
     }
 
     val workoutType = active.session.workoutType
+    val activeTemplate = uiState.templateFor(workoutType)
+    val exercisesInWorkout = active.distinctWorkingExercises()
+        .ifEmpty { activeTemplate.exerciseList() }
 
     Column(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -175,17 +216,28 @@ fun WorkoutScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = workoutType.title,
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.ExtraBold
+                            text = "ACTIVE WORKOUT (PULL DOWN TO CHANGE)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold
                         )
-                        Text(
-                            text = "Tap a circle once for 5 reps, tap again for 4, 3, 2, 1, 0",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            WorkoutPullDownSelector(
+                                currentWorkoutType = workoutType,
+                                uiState = uiState,
+                                onSelectWorkoutType = onSelectWorkoutType,
+                                onOpenWorkoutBuilder = { editingWorkoutType = it }
+                            )
+                            TextButton(onClick = { editingWorkoutType = workoutType }) {
+                                Text("+ Edit Lifts")
+                            }
+                        }
                     }
                     TextButton(onClick = onDiscardWorkout) {
                         Text("Discard", color = MaterialTheme.colorScheme.error)
@@ -193,9 +245,13 @@ fun WorkoutScreen(
                 }
             }
 
-            items(workoutType.exercises()) { exercise ->
+            items(exercisesInWorkout) { exercise ->
+                val displayName = uiState.exerciseDisplayName(exercise)
                 val workSets = active.workingSetsFor(exercise)
                 val warmupSets = active.warmupSetsFor(exercise)
+                val targetReps = workSets.firstOrNull()?.targetReps
+                    ?: uiState.exerciseStates[exercise]?.targetReps
+                    ?: exercise.defaultReps
                 val workWeightLb = workSets.firstOrNull()?.targetWeightLb
                     ?: uiState.exerciseStates[exercise]?.currentWeightLb
                     ?: exercise.defaultStartWeightLb
@@ -224,9 +280,9 @@ fun WorkoutScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column {
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = exercise.displayName,
+                                    text = displayName,
                                     style = MaterialTheme.typography.titleLarge,
                                     fontWeight = FontWeight.Bold
                                 )
@@ -241,7 +297,7 @@ fun WorkoutScreen(
                             }
 
                             Text(
-                                text = "${workSets.size}×5 ${unit.format(workWeightLb)}",
+                                text = "${workSets.size}×$targetReps ${unit.format(workWeightLb)}",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.ExtraBold,
                                 modifier = Modifier.clickable {
@@ -256,7 +312,7 @@ fun WorkoutScreen(
                                 FilterChip(
                                     selected = !showingWarmups,
                                     onClick = { showWarmupMap[exercise] = false },
-                                    label = { Text("Work Sets (${workSets.size}×5)") }
+                                    label = { Text("Work Sets (${workSets.size}×$targetReps)") }
                                 )
                                 FilterChip(
                                     selected = showingWarmups,
@@ -302,7 +358,6 @@ fun WorkoutScreen(
                                 }
                             }
                         } else {
-                            // 5x5 Working Set Bubbles Row
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceEvenly,
@@ -378,7 +433,7 @@ fun WorkoutScreen(
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Text(
-                        text = "Finish Workout & Save Progression",
+                        text = "Finish ${activeTemplate.customTitle} & Save Progression",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )

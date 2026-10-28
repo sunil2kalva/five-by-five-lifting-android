@@ -8,6 +8,7 @@ import com.stronglifts5x5.app.data.local.AppDatabase
 import com.stronglifts5x5.app.data.local.BodyweightEntryEntity
 import com.stronglifts5x5.app.data.local.ExerciseStateEntity
 import com.stronglifts5x5.app.data.local.WorkoutSessionWithSets
+import com.stronglifts5x5.app.data.local.WorkoutTemplateEntity
 import com.stronglifts5x5.app.data.model.ExerciseType
 import com.stronglifts5x5.app.data.model.WeightUnit
 import com.stronglifts5x5.app.data.model.WorkoutType
@@ -35,6 +36,7 @@ data class RestTimerState(
 )
 
 data class StrengthUiState(
+    val workoutTemplates: Map<WorkoutType, WorkoutTemplateEntity> = emptyMap(),
     val exerciseStates: Map<ExerciseType, ExerciseStateEntity> = emptyMap(),
     val activeSession: WorkoutSessionWithSets? = null,
     val completedSessions: List<WorkoutSessionWithSets> = emptyList(),
@@ -44,7 +46,21 @@ data class StrengthUiState(
     val restTimer: RestTimerState = RestTimerState(),
     val completionSummary: WorkoutCompletionSummary? = null,
     val statusMessage: String? = null
-)
+) {
+    fun enabledTemplates(): List<WorkoutTemplateEntity> =
+        workoutTemplates.values.filter { it.isEnabled }.sortedBy { it.workoutType.ordinal }
+
+    fun templateFor(type: WorkoutType): WorkoutTemplateEntity =
+        workoutTemplates[type] ?: WorkoutTemplateEntity(
+            workoutType = type,
+            customTitle = type.title,
+            exercisesCsv = type.exercises().joinToString(",") { it.name },
+            isEnabled = true
+        )
+
+    fun exerciseDisplayName(exercise: ExerciseType): String =
+        exerciseStates[exercise]?.effectiveName() ?: exercise.displayName
+}
 
 class StrengthViewModel(
     private val repository: WorkoutRepository
@@ -62,24 +78,38 @@ class StrengthViewModel(
     }
 
     val uiState: StateFlow<StrengthUiState> = combine(
+        repository.workoutTemplatesFlow,
         repository.exerciseStatesFlow,
         repository.activeSessionFlow,
         repository.completedSessionsFlow,
-        repository.bodyweightEntriesFlow,
-        repository.preferencesRepository.preferencesFlow
-    ) { states, active, completed, bodyweights, prefs ->
-        val defaultMap = AppDatabase.defaultExerciseStates().associateBy { it.exercise }
-        val mergedStates = defaultMap + states.associateBy { it.exercise }
+        repository.bodyweightEntriesFlow
+    ) { templates, states, active, completed, bodyweights ->
+        val defaultTemplates = AppDatabase.defaultWorkoutTemplates().associateBy { it.workoutType }
+        val mergedTemplates = defaultTemplates + templates.associateBy { it.workoutType }
 
-        val lastCompletedType = completed.firstOrNull()?.session?.workoutType
-        val autoNextType = lastCompletedType?.next() ?: WorkoutType.WORKOUT_A
-        val nextType = prefs.nextWorkoutOverride ?: autoNextType
+        val defaultStates = AppDatabase.defaultExerciseStates().associateBy { it.exercise }
+        val mergedStates = defaultStates + states.associateBy { it.exercise }
 
         StrengthUiState(
+            workoutTemplates = mergedTemplates,
             exerciseStates = mergedStates,
             activeSession = active,
             completedSessions = completed,
-            bodyweightEntries = bodyweights,
+            bodyweightEntries = bodyweights
+        )
+    }.combine(repository.preferencesRepository.preferencesFlow) { base, prefs ->
+        val enabledList = base.enabledTemplates().map { it.workoutType }.ifEmpty {
+            listOf(WorkoutType.WORKOUT_A, WorkoutType.WORKOUT_B)
+        }
+        val lastCompletedType = base.completedSessions.firstOrNull()?.session?.workoutType
+        val autoNextType = if (lastCompletedType != null) {
+            val idx = enabledList.indexOf(lastCompletedType)
+            if (idx >= 0) enabledList[(idx + 1) % enabledList.size] else enabledList.first()
+        } else {
+            enabledList.first()
+        }
+        val nextType = prefs.nextWorkoutOverride?.takeIf { it in enabledList } ?: autoNextType
+        base.copy(
             preferences = prefs,
             nextWorkoutType = nextType
         )
@@ -93,14 +123,72 @@ class StrengthViewModel(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
         initialValue = StrengthUiState(
+            workoutTemplates = AppDatabase.defaultWorkoutTemplates().associateBy { it.workoutType },
             exerciseStates = AppDatabase.defaultExerciseStates().associateBy { it.exercise }
         )
     )
 
-    fun toggleNextWorkoutType() {
-        val currentNext = uiState.value.nextWorkoutType
+    /**
+     * Called when the user selects Workout A, B, C, D, or E from the pull-down menu
+     * on either the Home screen or the Active Workout screen.
+     */
+    fun selectWorkoutType(workoutType: WorkoutType) {
         viewModelScope.launch {
-            repository.preferencesRepository.setNextWorkoutOverride(currentNext.next())
+            if (uiState.value.activeSession != null) {
+                stopRestTimer()
+                repository.switchActiveWorkoutType(workoutType)
+                val title = uiState.value.templateFor(workoutType).customTitle
+                _statusMessage.value = "Switched active workout to $title"
+            } else {
+                repository.preferencesRepository.setNextWorkoutOverride(workoutType)
+            }
+        }
+    }
+
+    fun saveWorkoutTemplate(
+        workoutType: WorkoutType,
+        customTitle: String,
+        exercises: List<ExerciseType>,
+        isEnabled: Boolean = true,
+        switchImmediately: Boolean = true
+    ) {
+        viewModelScope.launch {
+            repository.saveWorkoutTemplate(
+                workoutType = workoutType,
+                customTitle = customTitle,
+                exercises = exercises,
+                isEnabled = isEnabled
+            )
+            if (isEnabled && switchImmediately) {
+                if (uiState.value.activeSession != null) {
+                    repository.switchActiveWorkoutType(workoutType)
+                } else {
+                    repository.preferencesRepository.setNextWorkoutOverride(workoutType)
+                }
+            }
+            _statusMessage.value = "Saved ${customTitle.ifBlank { workoutType.title }}"
+        }
+    }
+
+    fun saveCustomExerciseConfig(
+        exercise: ExerciseType,
+        customName: String,
+        targetSets: Int,
+        targetReps: Int,
+        displayWeight: Double,
+        displayIncrement: Double
+    ) {
+        viewModelScope.launch {
+            val unit = uiState.value.preferences.weightUnit
+            repository.updateExerciseConfig(
+                exercise = exercise,
+                customName = customName,
+                targetSets = targetSets,
+                targetReps = targetReps,
+                workingWeightLb = unit.toLb(displayWeight),
+                incrementLb = unit.toLb(displayIncrement)
+            )
+            _statusMessage.value = "Updated ${customName.ifBlank { exercise.displayName }}"
         }
     }
 
@@ -134,7 +222,7 @@ class StrengthViewModel(
                 }
                 startRestTimer(
                     durationSeconds = seconds,
-                    exerciseName = updatedSet.exercise.displayName,
+                    exerciseName = uiState.value.exerciseDisplayName(updatedSet.exercise),
                     completedReps = reps,
                     reasonLabel = reason,
                     onTimerFinished = onVibrateOrSound
@@ -245,7 +333,8 @@ class StrengthViewModel(
             val unit = uiState.value.preferences.weightUnit
             val weightLb = unit.toLb(displayWeight)
             repository.updateExerciseWorkingWeight(exercise, weightLb)
-            _statusMessage.value = "Updated ${exercise.displayName} to ${unit.format(weightLb)}"
+            val name = uiState.value.exerciseDisplayName(exercise)
+            _statusMessage.value = "Updated $name to ${unit.format(weightLb)}"
         }
     }
 

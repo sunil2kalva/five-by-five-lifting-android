@@ -36,6 +36,7 @@ import com.stronglifts5x5.app.data.local.WorkoutSessionWithSets
 import com.stronglifts5x5.app.data.model.WorkoutType
 import com.stronglifts5x5.app.ui.StrengthUiState
 import com.stronglifts5x5.app.ui.theme.AccentBlue
+import com.stronglifts5x5.app.ui.theme.EmeraldSuccess
 import com.stronglifts5x5.app.ui.theme.StrongRed
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -100,6 +101,7 @@ fun HistoryScreen(
         } else {
             items(uiState.completedSessions, key = { it.session.id }) { sessionWithSets ->
                 val session = sessionWithSets.session
+                val templateTitle = uiState.templateFor(session.workoutType).customTitle
                 val dateStr = remember(session.completedAtEpochMillis, session.startedAtEpochMillis) {
                     SimpleDateFormat("EEE, MMM d, yyyy • h:mm a", Locale.US).format(
                         Date(session.completedAtEpochMillis ?: session.startedAtEpochMillis)
@@ -124,13 +126,13 @@ fun HistoryScreen(
                         ) {
                             Column {
                                 Text(
-                                    text = "${session.workoutType.title} • $dateStr",
+                                    text = "$templateTitle • $dateStr",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (session.workoutType == WorkoutType.WORKOUT_A) {
-                                        StrongRed
-                                    } else {
-                                        AccentBlue
+                                    color = when (session.workoutType) {
+                                        WorkoutType.WORKOUT_A -> StrongRed
+                                        WorkoutType.WORKOUT_B -> AccentBlue
+                                        else -> EmeraldSuccess
                                     }
                                 )
                                 val volumeText = "Volume: ${unit.format(sessionWithSets.totalVolumeLb())}"
@@ -147,7 +149,10 @@ fun HistoryScreen(
                             }
                         }
 
-                        session.workoutType.exercises().forEach { exercise ->
+                        val exercises = sessionWithSets.distinctWorkingExercises()
+                            .ifEmpty { session.workoutType.exercises() }
+
+                        exercises.forEach { exercise ->
                             val workSets = sessionWithSets.workingSetsFor(exercise)
                             val weightLb = workSets.firstOrNull()?.targetWeightLb ?: 0.0
                             val repsString = workSets.joinToString("/") {
@@ -158,7 +163,7 @@ fun HistoryScreen(
                                 horizontalArrangement = Arrangement.SpaceBetween
                             ) {
                                 Text(
-                                    text = exercise.displayName,
+                                    text = uiState.exerciseDisplayName(exercise),
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.SemiBold
                                 )
@@ -280,6 +285,7 @@ private fun MonthlyWorkoutCalendar(
                                     WorkoutType.WORKOUT_A -> StrongRed
                                     WorkoutType.WORKOUT_B -> AccentBlue
                                     null -> Color.Transparent
+                                    else -> EmeraldSuccess
                                 }
                                 Box(
                                     modifier = Modifier

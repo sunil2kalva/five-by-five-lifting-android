@@ -107,7 +107,11 @@ class MainActivity : ComponentActivity() {
                         composable(MainTab.HOME.route) {
                             HomeScreen(
                                 uiState = uiState,
-                                onToggleWorkoutType = viewModel::toggleNextWorkoutType,
+                                onSelectWorkoutType = viewModel::selectWorkoutType,
+                                onSaveWorkoutTemplate = { type, title, exercises, enabled ->
+                                    viewModel.saveWorkoutTemplate(type, title, exercises, enabled)
+                                },
+                                onSaveCustomExercise = viewModel::saveCustomExerciseConfig,
                                 onStartOrResumeWorkout = {
                                     viewModel.startOrResumeWorkout {
                                         navController.navigate(MainTab.WORKOUT.route)
@@ -123,6 +127,11 @@ class MainActivity : ComponentActivity() {
                         composable(MainTab.WORKOUT.route) {
                             WorkoutScreen(
                                 uiState = uiState,
+                                onSelectWorkoutType = viewModel::selectWorkoutType,
+                                onSaveWorkoutTemplate = { type, title, exercises, enabled ->
+                                    viewModel.saveWorkoutTemplate(type, title, exercises, enabled)
+                                },
+                                onSaveCustomExercise = viewModel::saveCustomExerciseConfig,
                                 onStartWorkout = {
                                     viewModel.startOrResumeWorkout {}
                                 },

@@ -7,10 +7,26 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
 import com.stronglifts5x5.app.data.model.ExerciseType
+import com.stronglifts5x5.app.data.model.WorkoutType
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface WorkoutDao {
+
+    @Query("SELECT * FROM workout_templates ORDER BY workoutType ASC")
+    fun observeWorkoutTemplates(): Flow<List<WorkoutTemplateEntity>>
+
+    @Query("SELECT * FROM workout_templates ORDER BY workoutType ASC")
+    suspend fun getWorkoutTemplates(): List<WorkoutTemplateEntity>
+
+    @Query("SELECT * FROM workout_templates WHERE workoutType = :workoutType LIMIT 1")
+    suspend fun getWorkoutTemplate(workoutType: WorkoutType): WorkoutTemplateEntity?
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertWorkoutTemplates(templates: List<WorkoutTemplateEntity>)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertWorkoutTemplate(template: WorkoutTemplateEntity)
 
     @Query("SELECT * FROM exercise_states ORDER BY exercise ASC")
     fun observeExerciseStates(): Flow<List<ExerciseStateEntity>>
@@ -51,6 +67,9 @@ interface WorkoutDao {
 
     @Query("DELETE FROM workout_sessions WHERE id = :sessionId")
     suspend fun deleteSession(sessionId: Long)
+
+    @Query("DELETE FROM workout_sets WHERE sessionId = :sessionId")
+    suspend fun deleteSetsForSession(sessionId: Long)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSets(sets: List<WorkoutSetEntity>)

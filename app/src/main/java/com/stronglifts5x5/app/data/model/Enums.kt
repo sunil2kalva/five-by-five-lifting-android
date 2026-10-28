@@ -18,6 +18,21 @@ enum class WorkoutType(
         code = "B",
         title = "Workout B",
         subtitle = "Squat • Overhead Press • Deadlift"
+    ),
+    WORKOUT_C(
+        code = "C",
+        title = "Workout C",
+        subtitle = "Front Squat • Incline Bench • Pull-ups • Barbell Curl"
+    ),
+    WORKOUT_D(
+        code = "D",
+        title = "Workout D",
+        subtitle = "Custom Workout D"
+    ),
+    WORKOUT_E(
+        code = "E",
+        title = "Workout E",
+        subtitle = "Custom Workout E"
     );
 
     fun exercises(): List<ExerciseType> = when (this) {
@@ -31,11 +46,30 @@ enum class WorkoutType(
             ExerciseType.OVERHEAD_PRESS,
             ExerciseType.DEADLIFT
         )
+        WORKOUT_C -> listOf(
+            ExerciseType.FRONT_SQUAT,
+            ExerciseType.INCLINE_BENCH_PRESS,
+            ExerciseType.PULL_UPS,
+            ExerciseType.BARBELL_CURL
+        )
+        WORKOUT_D -> listOf(
+            ExerciseType.ROMANIAN_DEADLIFT,
+            ExerciseType.CLOSE_GRIP_BENCH,
+            ExerciseType.DIPS
+        )
+        WORKOUT_E -> listOf(
+            ExerciseType.SQUAT,
+            ExerciseType.BENCH_PRESS,
+            ExerciseType.DEADLIFT
+        )
     }
 
     fun next(): WorkoutType = when (this) {
         WORKOUT_A -> WORKOUT_B
         WORKOUT_B -> WORKOUT_A
+        WORKOUT_C -> WORKOUT_A
+        WORKOUT_D -> WORKOUT_A
+        WORKOUT_E -> WORKOUT_A
     }
 }
 
@@ -87,6 +121,102 @@ enum class ExerciseType(
         defaultIncrementLb = 10.0,
         defaultSets = 1,
         defaultReps = 5
+    ),
+    FRONT_SQUAT(
+        displayName = "Front Squat",
+        shortName = "FSQ",
+        defaultStartWeightLb = 45.0,
+        defaultIncrementLb = 5.0,
+        defaultSets = 5,
+        defaultReps = 5
+    ),
+    INCLINE_BENCH_PRESS(
+        displayName = "Incline Bench Press",
+        shortName = "IBP",
+        defaultStartWeightLb = 45.0,
+        defaultIncrementLb = 5.0,
+        defaultSets = 5,
+        defaultReps = 5
+    ),
+    ROMANIAN_DEADLIFT(
+        displayName = "Romanian Deadlift",
+        shortName = "RDL",
+        defaultStartWeightLb = 95.0,
+        defaultIncrementLb = 5.0,
+        defaultSets = 3,
+        defaultReps = 8
+    ),
+    CLOSE_GRIP_BENCH(
+        displayName = "Close-Grip Bench",
+        shortName = "CGBP",
+        defaultStartWeightLb = 45.0,
+        defaultIncrementLb = 5.0,
+        defaultSets = 3,
+        defaultReps = 8
+    ),
+    PULL_UPS(
+        displayName = "Pull-ups / Chin-ups",
+        shortName = "PULL",
+        defaultStartWeightLb = 45.0,
+        defaultIncrementLb = 2.5,
+        defaultSets = 3,
+        defaultReps = 8
+    ),
+    DIPS(
+        displayName = "Parallel Bar Dips",
+        shortName = "DIP",
+        defaultStartWeightLb = 45.0,
+        defaultIncrementLb = 2.5,
+        defaultSets = 3,
+        defaultReps = 8
+    ),
+    BARBELL_CURL(
+        displayName = "Barbell Curl",
+        shortName = "CURL",
+        defaultStartWeightLb = 45.0,
+        defaultIncrementLb = 2.5,
+        defaultSets = 3,
+        defaultReps = 10
+    ),
+    SKULLCRUSHERS(
+        displayName = "Skullcrushers",
+        shortName = "SKULL",
+        defaultStartWeightLb = 45.0,
+        defaultIncrementLb = 2.5,
+        defaultSets = 3,
+        defaultReps = 10
+    ),
+    LATERAL_RAISE(
+        displayName = "Lateral Raise",
+        shortName = "LAT",
+        defaultStartWeightLb = 15.0,
+        defaultIncrementLb = 2.5,
+        defaultSets = 3,
+        defaultReps = 12
+    ),
+    CUSTOM_1(
+        displayName = "Custom Lift 1",
+        shortName = "C1",
+        defaultStartWeightLb = 45.0,
+        defaultIncrementLb = 5.0,
+        defaultSets = 5,
+        defaultReps = 5
+    ),
+    CUSTOM_2(
+        displayName = "Custom Lift 2",
+        shortName = "C2",
+        defaultStartWeightLb = 45.0,
+        defaultIncrementLb = 5.0,
+        defaultSets = 5,
+        defaultReps = 5
+    ),
+    CUSTOM_3(
+        displayName = "Custom Lift 3",
+        shortName = "C3",
+        defaultStartWeightLb = 45.0,
+        defaultIncrementLb = 5.0,
+        defaultSets = 3,
+        defaultReps = 8
     )
 }
 

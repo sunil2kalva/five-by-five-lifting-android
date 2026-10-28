@@ -11,6 +11,29 @@ import com.stronglifts5x5.app.data.model.WorkoutType
 import kotlinx.serialization.Serializable
 
 @Serializable
+@Entity(tableName = "workout_templates")
+data class WorkoutTemplateEntity(
+    @PrimaryKey val workoutType: WorkoutType,
+    val customTitle: String,
+    val exercisesCsv: String,
+    val isEnabled: Boolean = true
+) {
+    fun exerciseList(): List<ExerciseType> =
+        exercisesCsv.split(",")
+            .mapNotNull { token ->
+                val trimmed = token.trim()
+                if (trimmed.isEmpty()) null
+                else runCatching { ExerciseType.valueOf(trimmed) }.getOrNull()
+            }
+            .ifEmpty { workoutType.exercises() }
+
+    fun subtitle(customNames: Map<ExerciseType, String> = emptyMap()): String =
+        exerciseList().joinToString(" • ") { ex ->
+            customNames[ex]?.takeIf { it.isNotBlank() } ?: ex.displayName
+        }
+}
+
+@Serializable
 @Entity(tableName = "exercise_states")
 data class ExerciseStateEntity(
     @PrimaryKey val exercise: ExerciseType,
@@ -19,8 +42,12 @@ data class ExerciseStateEntity(
     val targetSets: Int,
     val targetReps: Int,
     val consecutiveFailures: Int = 0,
-    val deloadCount: Int = 0
-)
+    val deloadCount: Int = 0,
+    val customName: String = ""
+) {
+    fun effectiveName(): String =
+        customName.takeIf { it.isNotBlank() } ?: exercise.displayName
+}
 
 @Serializable
 @Entity(tableName = "workout_sessions")
@@ -76,6 +103,11 @@ data class WorkoutSessionWithSets(
     )
     val sets: List<WorkoutSetEntity>
 ) {
+    fun distinctWorkingExercises(): List<ExerciseType> =
+        sets.filter { !it.isWarmup }
+            .map { it.exercise }
+            .distinct()
+
     fun workingSetsFor(exercise: ExerciseType): List<WorkoutSetEntity> =
         sets.filter { !it.isWarmup && it.exercise == exercise }
             .sortedBy { it.setNumber }

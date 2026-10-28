@@ -6,15 +6,17 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import com.stronglifts5x5.app.data.model.ExerciseType
+import com.stronglifts5x5.app.data.model.WorkoutType
 
 @Database(
     entities = [
+        WorkoutTemplateEntity::class,
         ExerciseStateEntity::class,
         WorkoutSessionEntity::class,
         WorkoutSetEntity::class,
         BodyweightEntryEntity::class
     ],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -35,8 +37,6 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     DATABASE_NAME
                 )
-                    // TRUNCATE journal mode keeps all changes committed inside the main .db file
-                    // so Android Auto-Backup always captures a consistent SQLite snapshot.
                     .setJournalMode(JournalMode.TRUNCATE)
                     .fallbackToDestructiveMigration()
                     .build()
@@ -57,5 +57,39 @@ abstract class AppDatabase : RoomDatabase() {
                     deloadCount = 0
                 )
             }
+
+        fun defaultWorkoutTemplates(): List<WorkoutTemplateEntity> =
+            listOf(
+                WorkoutTemplateEntity(
+                    workoutType = WorkoutType.WORKOUT_A,
+                    customTitle = "Workout A",
+                    exercisesCsv = WorkoutType.WORKOUT_A.exercises().joinToString(",") { it.name },
+                    isEnabled = true
+                ),
+                WorkoutTemplateEntity(
+                    workoutType = WorkoutType.WORKOUT_B,
+                    customTitle = "Workout B",
+                    exercisesCsv = WorkoutType.WORKOUT_B.exercises().joinToString(",") { it.name },
+                    isEnabled = true
+                ),
+                WorkoutTemplateEntity(
+                    workoutType = WorkoutType.WORKOUT_C,
+                    customTitle = "Workout C",
+                    exercisesCsv = WorkoutType.WORKOUT_C.exercises().joinToString(",") { it.name },
+                    isEnabled = true
+                ),
+                WorkoutTemplateEntity(
+                    workoutType = WorkoutType.WORKOUT_D,
+                    customTitle = "Workout D",
+                    exercisesCsv = WorkoutType.WORKOUT_D.exercises().joinToString(",") { it.name },
+                    isEnabled = false
+                ),
+                WorkoutTemplateEntity(
+                    workoutType = WorkoutType.WORKOUT_E,
+                    customTitle = "Workout E",
+                    exercisesCsv = WorkoutType.WORKOUT_E.exercises().joinToString(",") { it.name },
+                    isEnabled = false
+                )
+            )
     }
 }

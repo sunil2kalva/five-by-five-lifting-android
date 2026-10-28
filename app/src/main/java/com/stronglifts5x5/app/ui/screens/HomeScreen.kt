@@ -30,9 +30,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.stronglifts5x5.app.data.model.ExerciseType
+import com.stronglifts5x5.app.data.model.WorkoutType
 import com.stronglifts5x5.app.domain.PlateCalculator
 import com.stronglifts5x5.app.ui.StrengthUiState
 import com.stronglifts5x5.app.ui.components.PlateCalculatorSheet
+import com.stronglifts5x5.app.ui.components.WorkoutBuilderSheet
+import com.stronglifts5x5.app.ui.components.WorkoutPullDownSelector
 import com.stronglifts5x5.app.ui.theme.AmberWarning
 import com.stronglifts5x5.app.ui.theme.EmeraldSuccess
 import java.text.SimpleDateFormat
@@ -42,7 +45,9 @@ import java.util.Locale
 @Composable
 fun HomeScreen(
     uiState: StrengthUiState,
-    onToggleWorkoutType: () -> Unit,
+    onSelectWorkoutType: (WorkoutType) -> Unit,
+    onSaveWorkoutTemplate: (WorkoutType, String, List<ExerciseType>, Boolean) -> Unit,
+    onSaveCustomExercise: (ExerciseType, String, Int, Int, Double, Double) -> Unit,
     onStartOrResumeWorkout: () -> Unit,
     onUpdateExerciseWeight: (ExerciseType, Double) -> Unit,
     onNavigateToSettings: () -> Unit
@@ -50,7 +55,13 @@ fun HomeScreen(
     val unit = uiState.preferences.weightUnit
     val barWeightLb = uiState.preferences.barbellWeightLb
     val upcomingType = uiState.activeSession?.session?.workoutType ?: uiState.nextWorkoutType
+    val upcomingTemplate = uiState.templateFor(upcomingType)
+    val customNames = remember(uiState.exerciseStates) {
+        uiState.exerciseStates.mapValues { it.value.effectiveName() }
+    }
+
     var selectedPlateExercise by remember { mutableStateOf<ExerciseType?>(null) }
+    var editingWorkoutType by remember { mutableStateOf<WorkoutType?>(null) }
 
     LazyColumn(
         modifier = Modifier
@@ -71,7 +82,7 @@ fun HomeScreen(
                         fontWeight = FontWeight.ExtraBold
                     )
                     Text(
-                        text = "3x/week Linear Progression Strength Tracker",
+                        text = "Custom A / B / C Progression Strength Tracker",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -113,7 +124,7 @@ fun HomeScreen(
             }
         }
 
-        // Next Workout Banner Card
+        // Next Workout Banner Card with Pull-Down Selector
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -132,49 +143,66 @@ fun HomeScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = if (uiState.activeSession != null) {
-                                    "IN PROGRESS • ${upcomingType.title.uppercase()}"
+                                    "ACTIVE WORKOUT (PULL DOWN TO SWITCH)"
                                 } else {
-                                    "NEXT UP • ${upcomingType.title.uppercase()}"
+                                    "SELECT WORKOUT (A / B / C...)"
                                 },
-                                style = MaterialTheme.typography.labelLarge,
+                                style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold
                             )
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = upcomingType.subtitle,
-                                style = MaterialTheme.typography.bodyMedium,
+                                text = upcomingTemplate.subtitle(customNames),
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 
-                        if (uiState.activeSession == null) {
-                            OutlinedButton(onClick = onToggleWorkoutType) {
-                                Text("Switch A ↔ B")
+                        WorkoutPullDownSelector(
+                            currentWorkoutType = upcomingType,
+                            uiState = uiState,
+                            onSelectWorkoutType = onSelectWorkoutType,
+                            onOpenWorkoutBuilder = { typeToEdit ->
+                                editingWorkoutType = typeToEdit
                             }
-                        }
+                        )
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
 
-                    Button(
-                        onClick = onStartOrResumeWorkout,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(52.dp),
-                        shape = RoundedCornerShape(12.dp)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = if (uiState.activeSession != null) {
-                                "Resume ${upcomingType.title}"
-                            } else {
-                                "Start ${upcomingType.title}"
-                            },
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
+                        Button(
+                            onClick = onStartOrResumeWorkout,
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(50.dp),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text(
+                                text = if (uiState.activeSession != null) {
+                                    "Resume ${upcomingTemplate.customTitle}"
+                                } else {
+                                    "Start ${upcomingTemplate.customTitle}"
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = { editingWorkoutType = upcomingType },
+                            modifier = Modifier.height(50.dp),
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Text("+ Create / Edit")
+                        }
                     }
                 }
             }
@@ -182,15 +210,16 @@ fun HomeScreen(
 
         item {
             Text(
-                text = "${upcomingType.title} Exercises (Tap any lift for Plate Calculator)",
+                text = "${upcomingTemplate.customTitle} Exercises (Tap any lift for Plate Calculator)",
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.SemiBold
             )
         }
 
-        items(upcomingType.exercises()) { exercise ->
+        items(upcomingTemplate.exerciseList()) { exercise ->
             val state = uiState.exerciseStates[exercise]
+            val displayName = uiState.exerciseDisplayName(exercise)
             val weightLb = state?.currentWeightLb ?: exercise.defaultStartWeightLb
             val sets = state?.targetSets ?: exercise.defaultSets
             val reps = state?.targetReps ?: exercise.defaultReps
@@ -219,7 +248,7 @@ fun HomeScreen(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = exercise.displayName,
+                            text = displayName,
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -268,6 +297,18 @@ fun HomeScreen(
             onSaveWeightDisplay = { newDisplayWeight ->
                 onUpdateExerciseWeight(exercise, newDisplayWeight)
             }
+        )
+    }
+
+    editingWorkoutType?.let { typeToEdit ->
+        WorkoutBuilderSheet(
+            initialWorkoutType = typeToEdit,
+            uiState = uiState,
+            onDismiss = { editingWorkoutType = null },
+            onSaveTemplate = { type, title, exercises, enabled ->
+                onSaveWorkoutTemplate(type, title, exercises, enabled)
+            },
+            onSaveCustomExercise = onSaveCustomExercise
         )
     }
 }

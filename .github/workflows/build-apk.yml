@@ -5,6 +5,9 @@ on:
     branches: [ "main", "master" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-apk:
     runs-on: ubuntu-latest
@@ -24,10 +27,21 @@ jobs:
           gradle-version: '8.9'
 
       - name: Run Unit Tests & Assemble Debug APK
-        run: gradle testDebugUnitTest assembleDebug --no-daemon
+        run: |
+          gradle testDebugUnitTest assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk StrongLifts5x5-s26plus-debug.apk
 
-      - name: Upload APK for Samsung S26+ Sideloading
+      - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: StrongLifts5x5-s26plus-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: StrongLifts5x5-s26plus-debug.apk
+
+      - name: Publish APK to GitHub Releases (v1.1.0)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.1.0
+          name: "StrongLifts 5x5 Android v1.1.0 (Custom Workouts A/B/C + Pull-Down Switcher)"
+          body: "Signed debug APK for Samsung S26+. Includes Pull-Down Workout Selector (A/B/C/D/E) on both Active Workout & Home screens, plus Custom Workout & Exercise Builder."
+          files: StrongLifts5x5-s26plus-debug.apk
+          prerelease: false

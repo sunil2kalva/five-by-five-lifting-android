@@ -522,8 +522,8 @@ nav.bottom-nav {
   <input type="file" id="restore-file-input" accept=".json,application/json" style="display:none" />
 
   <script>
-// StrongLifts 5x5 Offline-First PWA Engine
-// Mirrors the Kotlin + Jetpack Compose + Room SQLite architecture & JSON backup format
+// StrongLifts 5x5 v1.1.0 Offline-First PWA Engine
+// Includes Pull-Down Workout Selector (A / B / C / D / E), Active Workout Switching, and Custom Workout Builder
 
 const STORAGE_KEY = 'stronglifts_5x5_pwa_state_v1';
 const LB_TO_KG = 0.45359237;
@@ -533,22 +533,27 @@ const EXERCISES = {
   BENCH_PRESS: { id: 'BENCH_PRESS', displayName: 'Bench Press', shortName: 'BP', defaultStartLb: 45, defaultIncLb: 5, sets: 5, reps: 5 },
   BARBELL_ROW: { id: 'BARBELL_ROW', displayName: 'Barbell Row', shortName: 'ROW', defaultStartLb: 65, defaultIncLb: 5, sets: 5, reps: 5 },
   OVERHEAD_PRESS: { id: 'OVERHEAD_PRESS', displayName: 'Overhead Press', shortName: 'OHP', defaultStartLb: 45, defaultIncLb: 5, sets: 5, reps: 5 },
-  DEADLIFT: { id: 'DEADLIFT', displayName: 'Deadlift', shortName: 'DL', defaultStartLb: 95, defaultIncLb: 10, sets: 1, reps: 5 }
+  DEADLIFT: { id: 'DEADLIFT', displayName: 'Deadlift', shortName: 'DL', defaultStartLb: 95, defaultIncLb: 10, sets: 1, reps: 5 },
+  FRONT_SQUAT: { id: 'FRONT_SQUAT', displayName: 'Front Squat', shortName: 'FSQ', defaultStartLb: 45, defaultIncLb: 5, sets: 5, reps: 5 },
+  INCLINE_BENCH_PRESS: { id: 'INCLINE_BENCH_PRESS', displayName: 'Incline Bench Press', shortName: 'IBP', defaultStartLb: 45, defaultIncLb: 5, sets: 5, reps: 5 },
+  ROMANIAN_DEADLIFT: { id: 'ROMANIAN_DEADLIFT', displayName: 'Romanian Deadlift', shortName: 'RDL', defaultStartLb: 95, defaultIncLb: 5, sets: 3, reps: 8 },
+  CLOSE_GRIP_BENCH: { id: 'CLOSE_GRIP_BENCH', displayName: 'Close-Grip Bench', shortName: 'CGBP', defaultStartLb: 45, defaultIncLb: 5, sets: 3, reps: 8 },
+  PULL_UPS: { id: 'PULL_UPS', displayName: 'Pull-ups / Chin-ups', shortName: 'PULL', defaultStartLb: 45, defaultIncLb: 2.5, sets: 3, reps: 8 },
+  DIPS: { id: 'DIPS', displayName: 'Parallel Bar Dips', shortName: 'DIP', defaultStartLb: 45, defaultIncLb: 2.5, sets: 3, reps: 8 },
+  BARBELL_CURL: { id: 'BARBELL_CURL', displayName: 'Barbell Curl', shortName: 'CURL', defaultStartLb: 45, defaultIncLb: 2.5, sets: 3, reps: 10 },
+  SKULLCRUSHERS: { id: 'SKULLCRUSHERS', displayName: 'Skullcrushers', shortName: 'SKULL', defaultStartLb: 45, defaultIncLb: 2.5, sets: 3, reps: 10 },
+  LATERAL_RAISE: { id: 'LATERAL_RAISE', displayName: 'Lateral Raise', shortName: 'LAT', defaultStartLb: 15, defaultIncLb: 2.5, sets: 3, reps: 12 },
+  CUSTOM_1: { id: 'CUSTOM_1', displayName: 'Custom Lift 1', shortName: 'C1', defaultStartLb: 45, defaultIncLb: 5, sets: 5, reps: 5 },
+  CUSTOM_2: { id: 'CUSTOM_2', displayName: 'Custom Lift 2', shortName: 'C2', defaultStartLb: 45, defaultIncLb: 5, sets: 5, reps: 5 },
+  CUSTOM_3: { id: 'CUSTOM_3', displayName: 'Custom Lift 3', shortName: 'C3', defaultStartLb: 45, defaultIncLb: 5, sets: 3, reps: 8 }
 };
 
-const WORKOUTS = {
-  WORKOUT_A: {
-    code: 'A',
-    title: 'Workout A',
-    subtitle: 'Squat • Bench Press • Barbell Row',
-    exercises: ['SQUAT', 'BENCH_PRESS', 'BARBELL_ROW']
-  },
-  WORKOUT_B: {
-    code: 'B',
-    title: 'Workout B',
-    subtitle: 'Squat • Overhead Press • Deadlift',
-    exercises: ['SQUAT', 'OVERHEAD_PRESS', 'DEADLIFT']
-  }
+const DEFAULT_TEMPLATES = {
+  WORKOUT_A: { workoutType: 'WORKOUT_A', code: 'A', customTitle: 'Workout A', exercises: ['SQUAT', 'BENCH_PRESS', 'BARBELL_ROW'], isEnabled: true },
+  WORKOUT_B: { workoutType: 'WORKOUT_B', code: 'B', customTitle: 'Workout B', exercises: ['SQUAT', 'OVERHEAD_PRESS', 'DEADLIFT'], isEnabled: true },
+  WORKOUT_C: { workoutType: 'WORKOUT_C', code: 'C', customTitle: 'Workout C', exercises: ['FRONT_SQUAT', 'INCLINE_BENCH_PRESS', 'PULL_UPS', 'BARBELL_CURL'], isEnabled: true },
+  WORKOUT_D: { workoutType: 'WORKOUT_D', code: 'D', customTitle: 'Workout D', exercises: ['ROMANIAN_DEADLIFT', 'CLOSE_GRIP_BENCH', 'DIPS'], isEnabled: false },
+  WORKOUT_E: { workoutType: 'WORKOUT_E', code: 'E', customTitle: 'Workout E', exercises: ['SQUAT', 'BENCH_PRESS', 'DEADLIFT'], isEnabled: false }
 };
 
 const IMPERIAL_PLATES = [
@@ -561,9 +566,8 @@ const IMPERIAL_PLATES = [
 ];
 
 const METRIC_PLATES = [
-  { weight: 25, label: '25', color: '#DC2626', height: 108, textColor: '#fff' },
-  { weight: 20, label: '20', color: '#2563EB', height: 100, textColor: '#fff' },
-  { weight: 15, label: '15', color: '#EAB308', height: 90, textColor: '#000' },
+  { weight: 20, label: '20', color: '#2563EB', height: 108, textColor: '#fff' },
+  { weight: 15, label: '15', color: '#EAB308', height: 92, textColor: '#000' },
   { weight: 10, label: '10', color: '#16A34A', height: 78, textColor: '#fff' },
   { weight: 5, label: '5', color: '#E5E7EB', height: 62, textColor: '#000' },
   { weight: 2.5, label: '2.5', color: '#374151', height: 52, textColor: '#fff' },
@@ -578,7 +582,8 @@ function createDefaultExerciseStates() {
     targetSets: ex.sets,
     targetReps: ex.reps,
     consecutiveFailures: 0,
-    deloadCount: 0
+    deloadCount: 0,
+    customName: ''
   }));
 }
 
@@ -588,6 +593,9 @@ function loadAppState() {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (parsed && Array.isArray(parsed.exerciseStates)) {
+        if (!parsed.workoutTemplates) {
+          parsed.workoutTemplates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+        }
         return parsed;
       }
     }
@@ -595,11 +603,12 @@ function loadAppState() {
     console.error('Failed to read local storage:', e);
   }
   return {
-    schemaVersion: 1,
+    schemaVersion: 2,
     weightUnit: 'LB',
     barbellWeightLb: 45.0,
     nextWorkoutOverride: null,
     lastCloudSyncEpochMillis: null,
+    workoutTemplates: JSON.parse(JSON.stringify(DEFAULT_TEMPLATES)),
     exerciseStates: createDefaultExerciseStates(),
     activeSession: null,
     sessions: [],
@@ -629,15 +638,12 @@ function saveAppState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-// Unit conversion helpers
 function roundToStep(val, step) {
   return Math.round(val / step) * step;
 }
 
 function fromLb(weightLb, unit = state.weightUnit) {
-  if (unit === 'KG') {
-    return roundToStep(weightLb * LB_TO_KG, 1.25);
-  }
+  if (unit === 'KG') return roundToStep(weightLb * LB_TO_KG, 1.25);
   return roundToStep(weightLb, 2.5);
 }
 
@@ -654,7 +660,7 @@ function formatWeight(weightLb, includeUnit = true, unit = state.weightUnit) {
 function getExerciseState(exerciseId) {
   let found = state.exerciseStates.find((s) => s.exercise === exerciseId);
   if (!found) {
-    const def = EXERCISES[exerciseId];
+    const def = EXERCISES[exerciseId] || EXERCISES.SQUAT;
     found = {
       exercise: def.id,
       currentWeightLb: def.defaultStartLb,
@@ -662,22 +668,51 @@ function getExerciseState(exerciseId) {
       targetSets: def.sets,
       targetReps: def.reps,
       consecutiveFailures: 0,
-      deloadCount: 0
+      deloadCount: 0,
+      customName: ''
     };
     state.exerciseStates.push(found);
   }
   return found;
 }
 
-function getNextWorkoutType() {
-  if (state.nextWorkoutOverride) return state.nextWorkoutOverride;
-  if (state.sessions.length === 0) return 'WORKOUT_A';
-  const sorted = [...state.sessions].sort((a, b) => (b.session.completedAtEpochMillis || 0) - (a.session.completedAtEpochMillis || 0));
-  const lastType = sorted[0].session.workoutType;
-  return lastType === 'WORKOUT_A' ? 'WORKOUT_B' : 'WORKOUT_A';
+function getExerciseName(exerciseId) {
+  const st = getExerciseState(exerciseId);
+  if (st.customName && st.customName.trim()) return st.customName.trim();
+  return EXERCISES[exerciseId]?.displayName || exerciseId;
 }
 
-// Domain Calculators
+function getTemplate(workoutType) {
+  if (!state.workoutTemplates) state.workoutTemplates = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES));
+  if (!state.workoutTemplates[workoutType]) {
+    state.workoutTemplates[workoutType] = JSON.parse(JSON.stringify(DEFAULT_TEMPLATES[workoutType] || DEFAULT_TEMPLATES.WORKOUT_A));
+  }
+  return state.workoutTemplates[workoutType];
+}
+
+function getEnabledTemplates() {
+  return Object.keys(DEFAULT_TEMPLATES)
+    .map((k) => getTemplate(k))
+    .filter((t) => t.isEnabled);
+}
+
+function getTemplateSubtitle(workoutType) {
+  const t = getTemplate(workoutType);
+  return t.exercises.map((exId) => getExerciseName(exId)).join(' • ');
+}
+
+function getNextWorkoutType() {
+  const enabled = getEnabledTemplates().map((t) => t.workoutType);
+  if (state.nextWorkoutOverride && enabled.includes(state.nextWorkoutOverride)) {
+    return state.nextWorkoutOverride;
+  }
+  if (state.sessions.length === 0) return enabled[0] || 'WORKOUT_A';
+  const sorted = [...state.sessions].sort((a, b) => (b.session.completedAtEpochMillis || 0) - (a.session.completedAtEpochMillis || 0));
+  const lastType = sorted[0].session.workoutType;
+  const idx = enabled.indexOf(lastType);
+  return idx >= 0 ? enabled[(idx + 1) % enabled.length] : (enabled[0] || 'WORKOUT_A');
+}
+
 function calculatePlates(targetWeightLb, barWeightLb = state.barbellWeightLb, unit = state.weightUnit) {
   const targetDisplay = fromLb(targetWeightLb, unit);
   const barDisplay = unit === 'KG' && Math.abs(barWeightLb - 45) < 1.5 ? 20 : fromLb(barWeightLb, unit);
@@ -794,12 +829,9 @@ function evaluateExerciseSession(exState, workingSets, minBarWeightLb = 45) {
   }
 }
 
-// Audio & Haptics for Rest Timer
 function playBeepAndVibrate() {
   try {
-    if (navigator.vibrate) {
-      navigator.vibrate([250, 120, 250]);
-    }
+    if (navigator.vibrate) navigator.vibrate([250, 120, 250]);
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -909,49 +941,48 @@ window.stopRestTimer = stopRestTimer;
 function showToast(msg) {
   const c = document.getElementById('toast-container');
   c.innerHTML = `<div class="toast-banner">${msg}</div>`;
-  setTimeout(() => {
-    c.innerHTML = '';
-  }, 2800);
+  setTimeout(() => { c.innerHTML = ''; }, 2800);
 }
 
-// Start or Resume Workout
+function buildSetsForWorkoutType(workoutType, sessionId) {
+  const template = getTemplate(workoutType);
+  let setIdCounter = 1;
+  const sets = [];
+  for (const exId of template.exercises) {
+    const exState = getExerciseState(exId);
+    const warmups = generateWarmupSets(exId, exState.currentWeightLb, state.barbellWeightLb);
+    for (const wu of warmups) {
+      sets.push({
+        id: setIdCounter++,
+        sessionId,
+        exercise: exId,
+        setNumber: wu.setNumber,
+        isWarmup: true,
+        targetWeightLb: wu.weightLb,
+        targetReps: wu.targetReps,
+        completedReps: null
+      });
+    }
+    for (let i = 1; i <= exState.targetSets; i++) {
+      sets.push({
+        id: setIdCounter++,
+        sessionId,
+        exercise: exId,
+        setNumber: i,
+        isWarmup: false,
+        targetWeightLb: exState.currentWeightLb,
+        targetReps: exState.targetReps,
+        completedReps: null
+      });
+    }
+  }
+  return sets;
+}
+
 function startOrResumeWorkout() {
   if (!state.activeSession) {
     const workoutType = getNextWorkoutType();
-    const workoutDef = WORKOUTS[workoutType];
     const now = Date.now();
-    let setIdCounter = 1;
-    const sets = [];
-
-    for (const exId of workoutDef.exercises) {
-      const exState = getExerciseState(exId);
-      const warmups = generateWarmupSets(exId, exState.currentWeightLb, state.barbellWeightLb);
-      for (const wu of warmups) {
-        sets.push({
-          id: setIdCounter++,
-          sessionId: now,
-          exercise: exId,
-          setNumber: wu.setNumber,
-          isWarmup: true,
-          targetWeightLb: wu.weightLb,
-          targetReps: wu.targetReps,
-          completedReps: null
-        });
-      }
-      for (let i = 1; i <= exState.targetSets; i++) {
-        sets.push({
-          id: setIdCounter++,
-          sessionId: now,
-          exercise: exId,
-          setNumber: i,
-          isWarmup: false,
-          targetWeightLb: exState.currentWeightLb,
-          targetReps: exState.targetReps,
-          completedReps: null
-        });
-      }
-    }
-
     state.activeSession = {
       session: {
         id: now,
@@ -962,17 +993,162 @@ function startOrResumeWorkout() {
         notes: '',
         isCompleted: false
       },
-      sets
+      sets: buildSetsForWorkoutType(workoutType, now)
     };
     saveAppState();
   }
   switchTab('workout');
 }
 
+// Pull-Down Workout Switcher Handler
+window.onPullDownWorkoutChange = function(value) {
+  if (value === '__CREATE__') {
+    const currentType = state.activeSession ? state.activeSession.session.workoutType : getNextWorkoutType();
+    openWorkoutBuilderModal(currentType);
+    render();
+    return;
+  }
+  state.nextWorkoutOverride = value;
+  if (state.activeSession) {
+    stopRestTimer();
+    state.activeSession.session.workoutType = value;
+    state.activeSession.sets = buildSetsForWorkoutType(value, state.activeSession.session.id);
+    showToast(`Switched active workout to ${getTemplate(value).customTitle}`);
+  }
+  saveAppState();
+  render();
+};
+
+function renderPullDownSelectHtml(selectedWorkoutType) {
+  const enabled = getEnabledTemplates();
+  const optionsHtml = enabled.map((t) => `
+    <option value="${t.workoutType}" ${t.workoutType === selectedWorkoutType ? 'selected' : ''}>
+      ${t.customTitle} (${t.exercises.map((e) => getExerciseName(e)).join(', ')})
+    </option>
+  `).join('');
+
+  return `
+    <select class="input-field" style="font-weight:800;background:#1e293b;border-color:var(--primary);cursor:pointer;max-width:225px"
+      onchange="onPullDownWorkoutChange(this.value)">
+      ${optionsHtml}
+      <option value="__CREATE__">+ Create / Customize Workouts (A–E)...</option>
+    </select>
+  `;
+}
+
+// Custom Workout Builder Modal
+window.openWorkoutBuilderModal = function(initialType = 'WORKOUT_C') {
+  let currentSlot = initialType;
+
+  function renderBuilder() {
+    const tpl = getTemplate(currentSlot);
+    const slotChips = Object.keys(DEFAULT_TEMPLATES).map((k) => {
+      const code = DEFAULT_TEMPLATES[k].code;
+      return `
+        <button class="chip ${currentSlot === k ? 'active' : ''}" onclick="switchBuilderSlot('${k}')">
+          Workout ${code}
+        </button>
+      `;
+    }).join('');
+
+    const exercisesListHtml = Object.values(EXERCISES).map((ex) => {
+      const checked = tpl.exercises.includes(ex.id);
+      const exState = getExerciseState(ex.id);
+      return `
+        <div class="row-between" style="padding:6px 0;border-bottom:1px solid rgba(255,255,255,0.06)">
+          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;flex:1">
+            <input type="checkbox" class="builder-ex-cb" value="${ex.id}" ${checked ? 'checked' : ''} style="width:18px;height:18px" />
+            <div>
+              <div style="font-weight:700;font-size:0.9rem">${getExerciseName(ex.id)}</div>
+              <div style="font-size:0.74rem;color:var(--muted)">${exState.targetSets}×${exState.targetReps} @ ${formatWeight(exState.currentWeightLb)}</div>
+            </div>
+          </label>
+          <button class="btn btn-outline btn-sm" onclick="promptEditExercise('${ex.id}')">Edit Lift</button>
+        </div>
+      `;
+    }).join('');
+
+    document.getElementById('modal-container').innerHTML = `
+      <div class="modal-backdrop" onclick="if(event.target===this) closeModal()">
+        <div class="modal-card" style="max-height:88dvh;overflow-y:auto">
+          <div class="row-between" style="margin-bottom:8px">
+            <h3 style="margin:0;font-size:1.15rem">Create / Edit Workouts (A–E)</h3>
+            <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
+          </div>
+
+          <div class="chips-row" style="margin-bottom:10px">${slotChips}</div>
+
+          <div style="margin-bottom:10px">
+            <label style="font-size:0.76rem;color:var(--muted)">Workout Title</label>
+            <input type="text" id="builder-title-input" class="input-field" value="${tpl.customTitle}" style="margin-top:4px" />
+          </div>
+
+          <div style="font-size:0.78rem;color:var(--muted);font-weight:700;margin-bottom:6px">
+            Select Exercises in ${tpl.customTitle}:
+          </div>
+          <div style="max-height:280px;overflow-y:auto;margin-bottom:14px;padding-right:4px">
+            ${exercisesListHtml}
+          </div>
+
+          <button class="btn btn-primary" id="save-builder-btn">
+            Save ${tpl.customTitle} & Use Now
+          </button>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('save-builder-btn').onclick = () => {
+      const newTitle = document.getElementById('builder-title-input').value.trim() || DEFAULT_TEMPLATES[currentSlot].customTitle;
+      const checkedBoxes = Array.from(document.querySelectorAll('.builder-ex-cb:checked')).map((cb) => cb.value);
+      if (checkedBoxes.length === 0) {
+        alert('Please select at least 1 exercise for this workout.');
+        return;
+      }
+      tpl.customTitle = newTitle;
+      tpl.exercises = checkedBoxes;
+      tpl.isEnabled = true;
+
+      state.nextWorkoutOverride = currentSlot;
+      if (state.activeSession) {
+        state.activeSession.session.workoutType = currentSlot;
+        state.activeSession.sets = buildSetsForWorkoutType(currentSlot, state.activeSession.session.id);
+      }
+      saveAppState();
+      closeModal();
+      render();
+      showToast(`Saved ${newTitle}!`);
+    };
+  }
+
+  window.switchBuilderSlot = function(slotKey) {
+    currentSlot = slotKey;
+    renderBuilder();
+  };
+
+  window.promptEditExercise = function(exId) {
+    const exState = getExerciseState(exId);
+    const currentName = getExerciseName(exId);
+    const newName = prompt('Exercise Name:', currentName);
+    if (newName === null) return;
+    const newSets = parseInt(prompt('Target Sets (1-10):', exState.targetSets), 10);
+    const newReps = parseInt(prompt('Target Reps per Set (1-30):', exState.targetReps), 10);
+    const newWeight = parseFloat(prompt(`Working Weight (${state.weightUnit.toLowerCase()}):`, fromLb(exState.currentWeightLb)));
+
+    if (newName.trim()) exState.customName = newName.trim();
+    if (!isNaN(newSets) && newSets > 0) exState.targetSets = newSets;
+    if (!isNaN(newReps) && newReps > 0) exState.targetReps = newReps;
+    if (!isNaN(newWeight) && newWeight > 0) exState.currentWeightLb = toLb(newWeight);
+    saveAppState();
+    renderBuilder();
+  };
+
+  renderBuilder();
+};
+
 // Plate Calculator Modal
 window.openPlateModal = function(exerciseId) {
-  const ex = EXERCISES[exerciseId];
   const exState = getExerciseState(exerciseId);
+  const displayName = getExerciseName(exerciseId);
   let modalDisplayWeight = fromLb(exState.currentWeightLb);
   const step = state.weightUnit === 'LB' ? 5 : 2.5;
 
@@ -991,7 +1167,7 @@ window.openPlateModal = function(exerciseId) {
       <div class="modal-backdrop" onclick="if(event.target===this) closeModal()">
         <div class="modal-card">
           <div class="row-between">
-            <h3 style="margin:0;font-size:1.15rem">${ex.displayName} — Plate Calculator</h3>
+            <h3 style="margin:0;font-size:1.15rem">${displayName} — Plate Calculator</h3>
             <button class="btn btn-outline btn-sm" onclick="closeModal()">✕</button>
           </div>
           <p style="margin:6px 0 0;font-size:0.85rem;color:var(--muted)">
@@ -1015,7 +1191,7 @@ window.openPlateModal = function(exerciseId) {
           </div>
 
           <button class="btn btn-primary" id="plate-apply-btn">
-            Save ${formatWeight(weightLb)} for ${ex.displayName}
+            Save ${formatWeight(weightLb)} for ${displayName}
           </button>
         </div>
       </div>
@@ -1045,7 +1221,7 @@ window.closeModal = function() {
 
 function updateExerciseWorkingWeight(exerciseId, newWeightLb) {
   const exState = getExerciseState(exerciseId);
-  exState.currentWeightLb = Math.max(20, newWeightLb);
+  exState.currentWeightLb = Math.max(5, newWeightLb);
   exState.consecutiveFailures = 0;
 
   if (state.activeSession) {
@@ -1057,26 +1233,25 @@ function updateExerciseWorkingWeight(exerciseId, newWeightLb) {
   }
   saveAppState();
   render();
-  showToast(`Updated ${EXERCISES[exerciseId].displayName} to ${formatWeight(newWeightLb)}`);
+  showToast(`Updated ${getExerciseName(exerciseId)} to ${formatWeight(newWeightLb)}`);
 }
 
 // Render Screens
 function renderHome() {
   const upcomingKey = state.activeSession ? state.activeSession.session.workoutType : getNextWorkoutType();
-  const upcoming = WORKOUTS[upcomingKey];
+  const upcoming = getTemplate(upcomingKey);
   const lastSession = state.sessions.length > 0
     ? new Date(state.sessions[state.sessions.length - 1].session.completedAtEpochMillis).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
     : 'None yet';
 
   const exerciseCardsHtml = upcoming.exercises.map((exId) => {
-    const ex = EXERCISES[exId];
     const exState = getExerciseState(exId);
     const loadout = calculatePlates(exState.currentWeightLb);
     return `
       <div class="card" style="cursor:pointer" onclick="openPlateModal('${exId}')">
         <div class="row-between">
           <div>
-            <div style="font-size:1.05rem;font-weight:800">${ex.displayName}</div>
+            <div style="font-size:1.05rem;font-weight:800">${getExerciseName(exId)}</div>
             <div style="font-size:0.8rem;color:var(--muted);margin-top:3px">
               Plates: ${loadout.summary}
             </div>
@@ -1111,24 +1286,25 @@ function renderHome() {
     <div class="card card-highlight">
       <div class="row-between">
         <div>
-          <div style="font-size:0.76rem;font-weight:800;color:var(--primary)">
-            ${state.activeSession ? `IN PROGRESS • ${upcoming.title.toUpperCase()}` : `NEXT UP • ${upcoming.title.toUpperCase()}`}
+          <div style="font-size:0.74rem;font-weight:800;color:var(--primary)">
+            ${state.activeSession ? 'ACTIVE WORKOUT (PULL DOWN TO SWITCH)' : 'SELECT WORKOUT (PULL DOWN A / B / C)'}
           </div>
-          <div style="font-size:0.86rem;color:var(--muted);margin-top:2px">${upcoming.subtitle}</div>
+          <div style="font-size:0.82rem;color:var(--muted);margin-top:3px">${getTemplateSubtitle(upcomingKey)}</div>
         </div>
-        ${!state.activeSession ? `
-          <button class="btn btn-outline btn-sm" id="toggle-ab-btn">Switch A ↔ B</button>
-        ` : ''}
+        ${renderPullDownSelectHtml(upcomingKey)}
       </div>
-      <div style="margin-top:14px">
-        <button class="btn btn-primary" id="start-workout-btn">
-          ${state.activeSession ? `Resume ${upcoming.title}` : `Start ${upcoming.title}`}
+      <div style="margin-top:14px;display:flex;gap:8px">
+        <button class="btn btn-primary" style="flex:1" id="start-workout-btn">
+          ${state.activeSession ? `Resume ${upcoming.customTitle}` : `Start ${upcoming.customTitle}`}
+        </button>
+        <button class="btn btn-outline" onclick="openWorkoutBuilderModal('${upcomingKey}')">
+          + Create / Edit
         </button>
       </div>
     </div>
 
     <div style="font-size:0.82rem;font-weight:700;color:var(--muted);margin-top:4px">
-      ${upcoming.title} Lifts (Tap any lift for Plate Calculator)
+      ${upcoming.customTitle} Lifts (Tap any lift for Plate Calculator)
     </div>
     ${exerciseCardsHtml}
   `;
@@ -1136,23 +1312,31 @@ function renderHome() {
 
 function renderWorkout() {
   if (!state.activeSession) {
-    const nextW = WORKOUTS[getNextWorkoutType()];
+    const nextType = getNextWorkoutType();
+    const nextW = getTemplate(nextType);
     return `
       <div class="card" style="text-align:center;padding:32px 16px">
-        <h2 style="margin:0 0 8px">Ready for ${nextW.title}?</h2>
-        <p style="color:var(--muted);margin:0 0 20px">${nextW.subtitle}</p>
-        <button class="btn btn-primary" id="start-workout-empty-btn">Start ${nextW.title} Now</button>
+        <div style="font-size:0.8rem;color:var(--muted);margin-bottom:8px">Select Workout to Start:</div>
+        <div style="display:flex;justify-content:center;margin-bottom:10px">
+          ${renderPullDownSelectHtml(nextType)}
+        </div>
+        <p style="color:var(--muted);margin:0 0 20px">${getTemplateSubtitle(nextType)}</p>
+        <button class="btn btn-primary" id="start-workout-empty-btn" style="margin-bottom:10px">Start ${nextW.customTitle} Now</button>
+        <button class="btn btn-outline" style="width:100%" onclick="openWorkoutBuilderModal('${nextType}')">+ Create / Customize Workouts (A, B, C...)</button>
       </div>
     `;
   }
 
   const active = state.activeSession;
-  const wDef = WORKOUTS[active.session.workoutType];
+  const activeType = active.session.workoutType;
+  const wDef = getTemplate(activeType);
+  const exercisesInSession = Array.from(new Set(active.sets.filter((s) => !s.isWarmup).map((s) => s.exercise)));
 
-  const cardsHtml = wDef.exercises.map((exId) => {
-    const ex = EXERCISES[exId];
+  const cardsHtml = exercisesInSession.map((exId) => {
+    const displayName = getExerciseName(exId);
     const workSets = active.sets.filter((s) => !s.isWarmup && s.exercise === exId);
     const warmupSets = active.sets.filter((s) => s.isWarmup && s.exercise === exId);
+    const targetReps = workSets[0]?.targetReps || getExerciseState(exId).targetReps;
     const workWeightLb = workSets[0]?.targetWeightLb ?? getExerciseState(exId).currentWeightLb;
     const loadout = calculatePlates(workWeightLb);
     const showWarmup = !!warmupToggleByExercise[exId];
@@ -1201,20 +1385,20 @@ function renderWorkout() {
       <div class="card">
         <div class="row-between">
           <div onclick="openPlateModal('${exId}')" style="cursor:pointer">
-            <div style="font-size:1.15rem;font-weight:800">${ex.displayName}</div>
+            <div style="font-size:1.15rem;font-weight:800">${displayName}</div>
             <div style="font-size:0.78rem;color:var(--primary);margin-top:2px">
               Plates: ${loadout.summary} (Tap to adjust)
             </div>
           </div>
           <div class="weight-badge" onclick="openPlateModal('${exId}')" style="cursor:pointer">
-            ${workSets.length}×5 • ${formatWeight(workWeightLb)}
+            ${workSets.length}×${targetReps} • ${formatWeight(workWeightLb)}
           </div>
         </div>
 
         ${warmupSets.length > 0 ? `
           <div class="chips-row" style="margin-top:10px">
             <button class="chip ${!showWarmup ? 'active' : ''}" onclick="setWarmupTab('${exId}', false)">
-              Work Sets (${workSets.length}×5)
+              Work Sets (${workSets.length}×${targetReps})
             </button>
             <button class="chip ${showWarmup ? 'active' : ''}" onclick="setWarmupTab('${exId}', true)">
               Warm-up (${warmupSets.length} sets)
@@ -1228,14 +1412,17 @@ function renderWorkout() {
   }).join('');
 
   return `
-    <div class="row-between">
-      <div>
-        <h2 style="margin:0;font-size:1.25rem">${wDef.title}</h2>
-        <p style="margin:2px 0 0;font-size:0.76rem;color:var(--muted)">
-          Tap a circle once for 5 reps, tap again for 4, 3, 2, 1, 0
-        </p>
+    <div class="card card-highlight">
+      <div class="row-between">
+        <div>
+          <div style="font-size:0.72rem;font-weight:800;color:var(--primary)">ACTIVE WORKOUT (PULL DOWN TO SWITCH)</div>
+          <div style="margin-top:6px;display:flex;align-items:center;gap:8px">
+            ${renderPullDownSelectHtml(activeType)}
+            <button class="btn btn-outline btn-sm" onclick="openWorkoutBuilderModal('${activeType}')">+ Edit Lifts</button>
+          </div>
+        </div>
+        <button class="btn btn-danger btn-sm" id="discard-workout-btn">Discard</button>
       </div>
-      <button class="btn btn-danger btn-sm" id="discard-workout-btn">Discard</button>
     </div>
 
     ${cardsHtml}
@@ -1247,7 +1434,7 @@ function renderWorkout() {
     </div>
 
     <button class="btn btn-primary" id="finish-workout-btn" style="height:54px;font-size:1.02rem">
-      ✓ Finish Workout & Save Progression
+      ✓ Finish ${wDef.customTitle} & Save Progression
     </button>
   `;
 }
@@ -1272,14 +1459,14 @@ window.tapSetBubble = function(setId) {
     } else if (set.completedReps >= set.targetReps) {
       startRestTimer(
         90,
-        EXERCISES[set.exercise].displayName,
+        getExerciseName(set.exercise),
         set.completedReps,
         `Completed ${set.targetReps} reps — Rest 1:30 (or 3:00 if heavy)`
       );
     } else {
       startRestTimer(
         300,
-        EXERCISES[set.exercise].displayName,
+        getExerciseName(set.exercise),
         set.completedReps,
         `Missed rep (${set.completedReps}/${set.targetReps}) — Rest 5:00 to recover`
       );
@@ -1296,10 +1483,11 @@ function finishActiveWorkout() {
 
   stopRestTimer();
   const active = state.activeSession;
-  const wDef = WORKOUTS[active.session.workoutType];
+  const wDef = getTemplate(active.session.workoutType);
+  const exercisesInSession = Array.from(new Set(active.sets.filter((s) => !s.isWarmup).map((s) => s.exercise)));
   const results = [];
 
-  for (const exId of wDef.exercises) {
+  for (const exId of exercisesInSession) {
     const exState = getExerciseState(exId);
     const workSets = active.sets.filter((s) => !s.isWarmup && s.exercise === exId);
     const outcome = evaluateExerciseSession(exState, workSets, state.barbellWeightLb);
@@ -1332,9 +1520,8 @@ function finishActiveWorkout() {
     .filter((s) => !s.isWarmup && (s.completedReps || 0) > 0)
     .reduce((sum, s) => sum + s.targetWeightLb * s.completedReps, 0);
 
-  // Show progression summary modal
   const linesHtml = results.map((r) => {
-    const name = EXERCISES[r.exercise].displayName;
+    const name = getExerciseName(r.exercise);
     if (r.action === 'INCREMENTED') {
       return `<li><strong>${name}:</strong> ${formatWeight(r.previousWeightLb)} → <span style="color:var(--emerald);font-weight:800">${formatWeight(r.nextWeightLb)} (+Progress!)</span></li>`;
     } else if (r.action === 'DELOADED_10_PERCENT') {
@@ -1349,7 +1536,7 @@ function finishActiveWorkout() {
   document.getElementById('modal-container').innerHTML = `
     <div class="modal-backdrop" onclick="if(event.target===this) closeModal()">
       <div class="modal-card">
-        <h3 style="margin:0 0 6px;font-size:1.25rem">🎉 ${wDef.title} Complete!</h3>
+        <h3 style="margin:0 0 6px;font-size:1.25rem">🎉 ${wDef.customTitle} Complete!</h3>
         <div style="font-size:0.9rem;color:var(--primary);font-weight:800;margin-bottom:12px">
           Total Volume Lifted: ${formatWeight(totalVolumeLb)}
         </div>
@@ -1390,7 +1577,7 @@ function renderHistory() {
   }
   for (let day = 1; day <= daysInMonth; day++) {
     const wt = dayWorkouts[day];
-    const cls = wt === 'WORKOUT_A' ? 'workout-a' : (wt === 'WORKOUT_B' ? 'workout-b' : '');
+    const cls = wt === 'WORKOUT_A' ? 'workout-a' : (wt ? 'workout-b' : '');
     cellsHtml += `<div class="cal-day ${cls}">${day}</div>`;
   }
 
@@ -1401,7 +1588,7 @@ function renderHistory() {
   const sessionsHtml = sortedSessions.length === 0
     ? `<div class="card" style="color:var(--muted)">No completed workouts yet. Start your first workout on the Home tab or load sample workouts in Settings!</div>`
     : sortedSessions.map((s) => {
-        const wDef = WORKOUTS[s.session.workoutType];
+        const wDef = getTemplate(s.session.workoutType);
         const dateStr = new Date(s.session.completedAtEpochMillis || s.session.startedAtEpochMillis)
           .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
         const volLb = s.sets
@@ -1409,13 +1596,14 @@ function renderHistory() {
           .reduce((sum, x) => sum + x.targetWeightLb * x.completedReps, 0);
         const bwStr = s.session.bodyweightLb ? ` • BW: ${formatWeight(s.session.bodyweightLb)}` : '';
 
-        const liftsRows = wDef.exercises.map((exId) => {
+        const distinctExercises = Array.from(new Set(s.sets.filter((x) => !x.isWarmup).map((x) => x.exercise)));
+        const liftsRows = distinctExercises.map((exId) => {
           const wSets = s.sets.filter((x) => !x.isWarmup && x.exercise === exId);
           const wLb = wSets[0]?.targetWeightLb || 0;
           const repsJoined = wSets.map((x) => x.completedReps ?? 0).join('/');
           return `
             <div class="row-between" style="font-size:0.88rem;margin-top:4px">
-              <span style="font-weight:700">${EXERCISES[exId].displayName}</span>
+              <span style="font-weight:700">${getExerciseName(exId)}</span>
               <span style="color:var(--muted)">${formatWeight(wLb)} (${repsJoined})</span>
             </div>
           `;
@@ -1426,7 +1614,7 @@ function renderHistory() {
             <div class="row-between" style="margin-bottom:6px">
               <div>
                 <div style="font-weight:800;color:${s.session.workoutType === 'WORKOUT_A' ? 'var(--primary)' : 'var(--blue)'}">
-                  ${wDef.title} • ${dateStr}
+                  ${wDef.customTitle} • ${dateStr}
                 </div>
                 <div style="font-size:0.75rem;color:var(--muted)">
                   Volume: ${formatWeight(volLb)}${bwStr}
@@ -1520,7 +1708,6 @@ function renderGraphs() {
     ? maxLb * (1 + 5 / 30.0)
     : 0;
 
-  // Build SVG Line Chart
   const displayValues = points.map((p) => fromLb(p.weightLb));
   const minVal = (displayValues.length ? Math.min(...displayValues) : 0) - 5;
   const maxVal = (displayValues.length ? Math.max(...displayValues) : 100) + 5;
@@ -1617,7 +1804,7 @@ function renderSettings() {
     const exState = getExerciseState(ex.id);
     return `
       <div class="row-between" style="padding:6px 0">
-        <span style="font-weight:700">${ex.displayName}</span>
+        <span style="font-weight:700">${getExerciseName(ex.id)} (${exState.targetSets}×${exState.targetReps})</span>
         <button class="btn btn-outline btn-sm" onclick="openPlateModal('${ex.id}')">
           ${formatWeight(exState.currentWeightLb)}
         </button>
@@ -1627,6 +1814,18 @@ function renderSettings() {
 
   return `
     <div class="card card-highlight">
+      <div style="font-size:1.05rem;font-weight:800;margin-bottom:4px">
+        🏋️ Custom Workouts (Workout A, B, C, D, E)
+      </div>
+      <p style="font-size:0.8rem;color:var(--muted);margin:0 0 10px">
+        Create new workouts, customize which exercises belong to Workout A / B / C / D / E, or rename custom lifts and sets × reps.
+      </p>
+      <button class="btn btn-primary" onclick="openWorkoutBuilderModal('WORKOUT_C')">
+        + Create / Customize Workouts (A–E)
+      </button>
+    </div>
+
+    <div class="card">
       <div style="font-size:1.05rem;font-weight:800;margin-bottom:4px">
         ☁️ Google Drive Backup & New Phone Restore ($0 Cost)
       </div>
@@ -1686,7 +1885,6 @@ window.setWeightUnit = function(unit) {
   showToast(`Switched to ${unit}`);
 };
 
-// JSON Backup, Smart Cloud Merge, and CSV Export (Matches Kotlin AppBackupSnapshot schema!)
 window.exportJsonBackup = async function() {
   const now = Date.now();
   state.lastCloudSyncEpochMillis = now;
@@ -1706,7 +1904,6 @@ window.exportJsonBackup = async function() {
   const blob = new Blob([jsonStr], { type: 'application/json' });
   const fileName = 'stronglifts5x5_cloud_sync.json';
 
-  // On Samsung S26+ Chrome, navigator.share with files lets the user tap "Save to Drive" directly!
   if (navigator.canShare && navigator.share) {
     try {
       const file = new File([blob], fileName, { type: 'application/json' });
@@ -1750,7 +1947,6 @@ document.getElementById('restore-file-input').addEventListener('change', (event)
         alert('Invalid backup JSON file.');
         return;
       }
-      // Conflict-free Smart Cloud Merge
       const mergedMap = new Map();
       for (const s of [...state.sessions, ...cloud.sessions]) {
         const key = `${s.session.startedAtEpochMillis}_${s.session.workoutType}`;
@@ -1785,12 +1981,12 @@ window.exportCsvBackup = function() {
   const lines = ['Date,Workout,Exercise,SetNumber,SetType,TargetWeight,Unit,TargetReps,CompletedReps,Bodyweight'];
   for (const s of state.sessions) {
     const dt = new Date(s.session.completedAtEpochMillis || s.session.startedAtEpochMillis).toISOString().slice(0, 16).replace('T', ' ');
-    const code = s.session.workoutType === 'WORKOUT_A' ? 'A' : 'B';
+    const code = getTemplate(s.session.workoutType).code || 'A';
     const bw = s.session.bodyweightLb ? formatWeight(s.session.bodyweightLb, false) : '';
     for (const set of s.sets) {
       const typeStr = set.isWarmup ? 'Warmup' : 'Work';
       const wStr = formatWeight(set.targetWeightLb, false);
-      lines.push(`"${dt}",${code},"${EXERCISES[set.exercise].displayName}",${set.setNumber},${typeStr},${wStr},${state.weightUnit.toLowerCase()},${set.targetReps},${set.completedReps ?? ''},${bw}`);
+      lines.push(`"${dt}",${code},"${getExerciseName(set.exercise)}",${set.setNumber},${typeStr},${wStr},${state.weightUnit.toLowerCase()},${set.targetReps},${set.completedReps ?? ''},${bw}`);
     }
   }
   const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
@@ -1865,7 +2061,6 @@ window.seedDemoWorkouts = function() {
     });
   });
 
-  // Update next working weights to follow the 6th workout
   getExerciseState('SQUAT').currentWeightLb = 165;
   getExerciseState('BENCH_PRESS').currentWeightLb = 110;
   getExerciseState('BARBELL_ROW').currentWeightLb = 110;
@@ -1889,11 +2084,6 @@ function render() {
   const container = document.getElementById('app-content');
   if (currentTab === 'home') {
     container.innerHTML = renderHome();
-    document.getElementById('toggle-ab-btn')?.addEventListener('click', () => {
-      state.nextWorkoutOverride = getNextWorkoutType() === 'WORKOUT_A' ? 'WORKOUT_B' : 'WORKOUT_A';
-      saveAppState();
-      render();
-    });
     document.getElementById('start-workout-btn')?.addEventListener('click', startOrResumeWorkout);
   } else if (currentTab === 'workout') {
     container.innerHTML = renderWorkout();
@@ -1921,7 +2111,6 @@ document.querySelectorAll('.nav-item').forEach((btn) => {
 
 document.getElementById('sync-status-btn').addEventListener('click', () => switchTab('settings'));
 
-// Register offline Service Worker
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js').catch(() => {});

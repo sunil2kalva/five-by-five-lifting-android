@@ -8,6 +8,7 @@ import com.stronglifts5x5.app.data.local.WorkoutDao
 import com.stronglifts5x5.app.data.local.WorkoutSessionEntity
 import com.stronglifts5x5.app.data.local.WorkoutSessionWithSets
 import com.stronglifts5x5.app.data.local.WorkoutSetEntity
+import com.stronglifts5x5.app.data.local.WorkoutTemplateEntity
 import com.stronglifts5x5.app.data.model.ExerciseType
 import com.stronglifts5x5.app.data.model.WorkoutType
 import com.stronglifts5x5.app.data.preferences.UserPreferencesRepository
@@ -22,6 +23,7 @@ import kotlinx.coroutines.flow.first
 
 data class WorkoutCompletionSummary(
     val workoutType: WorkoutType,
+    val workoutTitle: String,
     val progressionResults: List<ExerciseProgressionResult>,
     val totalVolumeLb: Double,
     val cloudSynced: Boolean,
@@ -34,27 +36,40 @@ class WorkoutRepository(
     val cloudSyncManager: CloudSyncManager
 ) {
 
+    val workoutTemplatesFlow: Flow<List<WorkoutTemplateEntity>> = dao.observeWorkoutTemplates()
     val exerciseStatesFlow: Flow<List<ExerciseStateEntity>> = dao.observeExerciseStates()
     val activeSessionFlow: Flow<WorkoutSessionWithSets?> = dao.observeActiveSession()
     val completedSessionsFlow: Flow<List<WorkoutSessionWithSets>> = dao.observeCompletedSessions()
     val bodyweightEntriesFlow: Flow<List<BodyweightEntryEntity>> = dao.observeBodyweightEntries()
 
     suspend fun ensureDefaultExerciseStates() {
-        val current = dao.getExerciseStates()
-        if (current.isEmpty()) {
-            dao.upsertExerciseStates(AppDatabase.defaultExerciseStates())
+        val currentStates = dao.getExerciseStates().associateBy { it.exercise }
+        val missingStates = AppDatabase.defaultExerciseStates().filter { it.exercise !in currentStates }
+        if (missingStates.isNotEmpty()) {
+            dao.upsertExerciseStates(missingStates)
         }
+
+        val currentTemplates = dao.getWorkoutTemplates().associateBy { it.workoutType }
+        val missingTemplates = AppDatabase.defaultWorkoutTemplates().filter { it.workoutType !in currentTemplates }
+        if (missingTemplates.isNotEmpty()) {
+            dao.upsertWorkoutTemplates(missingTemplates)
+        }
+    }
+
+    suspend fun getTemplateExercises(workoutType: WorkoutType): List<ExerciseType> {
+        val template = dao.getWorkoutTemplate(workoutType)
+        return template?.exerciseList() ?: workoutType.exercises()
     }
 
     suspend fun startWorkout(workoutType: WorkoutType): Long {
         ensureDefaultExerciseStates()
         val existingActive = dao.getActiveSession()
         if (existingActive != null) {
+            if (existingActive.session.workoutType != workoutType) {
+                switchActiveWorkoutType(workoutType)
+            }
             return existingActive.session.id
         }
-
-        val prefs = preferencesRepository.preferencesFlow.first()
-        val statesByExercise = dao.getExerciseStates().associateBy { it.exercise }
 
         val sessionId = dao.insertSession(
             WorkoutSessionEntity(
@@ -64,8 +79,85 @@ class WorkoutRepository(
             )
         )
 
+        populateSetsForSession(sessionId, workoutType)
+        return sessionId
+    }
+
+    /**
+     * Switches an already-active workout session from e.g. Workout A to Workout B or Workout C
+     * via the pull-down selector, or updates the upcoming workout if no session is active yet.
+     */
+    suspend fun switchActiveWorkoutType(newWorkoutType: WorkoutType) {
+        ensureDefaultExerciseStates()
+        preferencesRepository.setNextWorkoutOverride(newWorkoutType)
+        val existingActive = dao.getActiveSession() ?: return
+
+        dao.deleteSetsForSession(existingActive.session.id)
+        dao.updateSession(existingActive.session.copy(workoutType = newWorkoutType))
+        populateSetsForSession(existingActive.session.id, newWorkoutType)
+    }
+
+    /**
+     * Saves or updates a Workout Template (Workout A, B, C, D, E) with a custom title
+     * and custom list of exercises, and refreshes the active workout if it matches this type.
+     */
+    suspend fun saveWorkoutTemplate(
+        workoutType: WorkoutType,
+        customTitle: String,
+        exercises: List<ExerciseType>,
+        isEnabled: Boolean = true
+    ) {
+        ensureDefaultExerciseStates()
+        val cleanExercises = exercises.distinct().ifEmpty { listOf(ExerciseType.SQUAT) }
+        val entity = WorkoutTemplateEntity(
+            workoutType = workoutType,
+            customTitle = customTitle.trim().ifEmpty { workoutType.title },
+            exercisesCsv = cleanExercises.joinToString(",") { it.name },
+            isEnabled = isEnabled
+        )
+        dao.upsertWorkoutTemplate(entity)
+
+        // If the currently active workout is using this template, rebuild its sets to match
+        val active = dao.getActiveSession()
+        if (active != null && active.session.workoutType == workoutType) {
+            dao.deleteSetsForSession(active.session.id)
+            populateSetsForSession(active.session.id, workoutType)
+        }
+    }
+
+    suspend fun updateExerciseConfig(
+        exercise: ExerciseType,
+        customName: String,
+        targetSets: Int,
+        targetReps: Int,
+        workingWeightLb: Double,
+        incrementLb: Double
+    ) {
+        ensureDefaultExerciseStates()
+        val current = dao.getExerciseState(exercise)
+        val updated = (current ?: ExerciseStateEntity(
+            exercise = exercise,
+            currentWeightLb = workingWeightLb,
+            incrementLb = incrementLb,
+            targetSets = targetSets,
+            targetReps = targetReps
+        )).copy(
+            customName = customName.trim(),
+            targetSets = targetSets.coerceIn(1, 10),
+            targetReps = targetReps.coerceIn(1, 30),
+            currentWeightLb = workingWeightLb.coerceAtLeast(5.0),
+            incrementLb = incrementLb.coerceAtLeast(0.0)
+        )
+        dao.upsertExerciseState(updated)
+    }
+
+    private suspend fun populateSetsForSession(sessionId: Long, workoutType: WorkoutType) {
+        val prefs = preferencesRepository.preferencesFlow.first()
+        val statesByExercise = dao.getExerciseStates().associateBy { it.exercise }
+        val exercises = getTemplateExercises(workoutType)
+
         val allSets = mutableListOf<WorkoutSetEntity>()
-        for (exercise in workoutType.exercises()) {
+        for (exercise in exercises) {
             val state = statesByExercise[exercise] ?: ExerciseStateEntity(
                 exercise = exercise,
                 currentWeightLb = exercise.defaultStartWeightLb,
@@ -94,7 +186,7 @@ class WorkoutRepository(
                 )
             }
 
-            // 2. Generate working sets (5x5 or 1x5 for Deadlift)
+            // 2. Generate working sets
             for (setIndex in 1..state.targetSets) {
                 allSets.add(
                     WorkoutSetEntity(
@@ -109,9 +201,7 @@ class WorkoutRepository(
                 )
             }
         }
-
         dao.insertSets(allSets)
-        return sessionId
     }
 
     suspend fun tapSetBubble(setId: Long): WorkoutSetEntity? {
@@ -137,7 +227,7 @@ class WorkoutRepository(
     suspend fun updateExerciseWorkingWeight(exercise: ExerciseType, newWeightLb: Double) {
         ensureDefaultExerciseStates()
         val current = dao.getExerciseState(exercise) ?: return
-        val clamped = newWeightLb.coerceAtLeast(20.0)
+        val clamped = newWeightLb.coerceAtLeast(5.0)
         dao.upsertExerciseState(
             current.copy(
                 currentWeightLb = clamped,
@@ -145,7 +235,6 @@ class WorkoutRepository(
             )
         )
 
-        // Also update uncompleted working sets in the active session if present
         val active = dao.getActiveSession() ?: return
         val workingSets = active.workingSetsFor(exercise)
         for (set in workingSets) {
@@ -170,11 +259,14 @@ class WorkoutRepository(
         val active = dao.getActiveSession() ?: return null
         val prefs = preferencesRepository.preferencesFlow.first()
         val statesMap = dao.getExerciseStates().associateBy { it.exercise }
+        val template = dao.getWorkoutTemplate(active.session.workoutType)
+        val exercisesInSession = active.distinctWorkingExercises()
+            .ifEmpty { template?.exerciseList() ?: active.session.workoutType.exercises() }
 
         val results = mutableListOf<ExerciseProgressionResult>()
         val updatedEntities = mutableListOf<ExerciseStateEntity>()
 
-        for (exercise in active.session.workoutType.exercises()) {
+        for (exercise in exercisesInSession) {
             val state = statesMap[exercise] ?: continue
             val workingSets = active.workingSetsFor(exercise)
             val outcome = ProgressionEngine.evaluateExerciseSession(
@@ -209,7 +301,6 @@ class WorkoutRepository(
 
         preferencesRepository.setNextWorkoutOverride(null)
 
-        // Automatic post-workout Google Drive sync if configured
         var cloudSynced = false
         var cloudError: String? = null
         val driveUriStr = prefs.cloudSyncUriString
@@ -221,6 +312,7 @@ class WorkoutRepository(
 
         return WorkoutCompletionSummary(
             workoutType = active.session.workoutType,
+            workoutTitle = template?.customTitle ?: active.session.workoutType.title,
             progressionResults = results,
             totalVolumeLb = active.totalVolumeLb(),
             cloudSynced = cloudSynced,
