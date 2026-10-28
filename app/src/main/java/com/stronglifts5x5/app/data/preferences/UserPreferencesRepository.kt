@@ -20,6 +20,7 @@ data class UserPreferences(
     val weightUnit: WeightUnit = WeightUnit.LB,
     val barbellWeightLb: Double = 45.0,
     val nextWorkoutOverride: WorkoutType? = null,
+    val googleAccountEmail: String? = null,
     val cloudSyncUriString: String? = null,
     val autoSyncEnabled: Boolean = true,
     val lastCloudSyncEpochMillis: Long? = null,
@@ -32,6 +33,7 @@ class UserPreferencesRepository(private val context: Context) {
         val WEIGHT_UNIT = stringPreferencesKey("weight_unit")
         val BARBELL_WEIGHT_LB = doublePreferencesKey("barbell_weight_lb")
         val NEXT_WORKOUT_OVERRIDE = stringPreferencesKey("next_workout_override")
+        val GOOGLE_ACCOUNT_EMAIL = stringPreferencesKey("google_account_email")
         val CLOUD_SYNC_URI = stringPreferencesKey("cloud_sync_uri")
         val AUTO_SYNC_ENABLED = booleanPreferencesKey("auto_sync_enabled")
         val LAST_CLOUD_SYNC_MS = longPreferencesKey("last_cloud_sync_ms")
@@ -50,6 +52,7 @@ class UserPreferencesRepository(private val context: Context) {
             weightUnit = unit,
             barbellWeightLb = barLb,
             nextWorkoutOverride = overrideWorkout,
+            googleAccountEmail = prefs[Keys.GOOGLE_ACCOUNT_EMAIL],
             cloudSyncUriString = prefs[Keys.CLOUD_SYNC_URI],
             autoSyncEnabled = prefs[Keys.AUTO_SYNC_ENABLED] ?: true,
             lastCloudSyncEpochMillis = prefs[Keys.LAST_CLOUD_SYNC_MS],
@@ -76,6 +79,16 @@ class UserPreferencesRepository(private val context: Context) {
                 prefs.remove(Keys.NEXT_WORKOUT_OVERRIDE)
             } else {
                 prefs[Keys.NEXT_WORKOUT_OVERRIDE] = workoutType.name
+            }
+        }
+    }
+
+    suspend fun setGoogleAccountEmail(email: String?) {
+        context.dataStore.edit { prefs ->
+            if (email.isNullOrBlank()) {
+                prefs.remove(Keys.GOOGLE_ACCOUNT_EMAIL)
+            } else {
+                prefs[Keys.GOOGLE_ACCOUNT_EMAIL] = email.trim()
             }
         }
     }

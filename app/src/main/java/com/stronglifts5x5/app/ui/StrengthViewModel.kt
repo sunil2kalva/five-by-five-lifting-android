@@ -1,5 +1,6 @@
 package com.stronglifts5x5.app.ui
 
+import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
@@ -128,10 +129,6 @@ class StrengthViewModel(
         )
     )
 
-    /**
-     * Called when the user selects Workout A, B, C, D, or E from the pull-down menu
-     * on either the Home screen or the Active Workout screen.
-     */
     fun selectWorkoutType(workoutType: WorkoutType) {
         viewModelScope.launch {
             if (uiState.value.activeSession != null) {
@@ -366,13 +363,54 @@ class StrengthViewModel(
         }
     }
 
+    fun setGoogleAccountEmail(email: String) {
+        viewModelScope.launch {
+            repository.preferencesRepository.setGoogleAccountEmail(email)
+            _statusMessage.value = "Selected Google Account: $email"
+        }
+    }
+
+    fun buildChooseGoogleAccountIntent(): Intent =
+        repository.cloudSyncManager.buildChooseGoogleAccountIntent()
+
+    fun buildCreateGoogleDriveFileIntent(accountEmail: String?): Intent =
+        repository.cloudSyncManager.buildCreateGoogleDriveFileIntent(
+            fileName = "stronglifts5x5_cloud_sync.json",
+            mimeType = "application/json",
+            accountEmail = accountEmail
+        )
+
+    fun buildOpenGoogleDriveFileIntent(accountEmail: String?): Intent =
+        repository.cloudSyncManager.buildOpenGoogleDriveFileIntent(accountEmail = accountEmail)
+
+    fun launchDirectSaveToGoogleDriveApp(onIntentReady: (Intent) -> Unit) {
+        viewModelScope.launch {
+            val snapshot = repository.buildBackupSnapshot()
+            val email = uiState.value.preferences.googleAccountEmail
+            val intentResult = repository.cloudSyncManager.buildSaveDirectlyToGoogleDriveAppIntent(
+                snapshot = snapshot,
+                accountEmail = email
+            )
+            intentResult.fold(
+                onSuccess = { intent ->
+                    repository.preferencesRepository.recordCloudSyncSuccess(snapshot.exportedAtEpochMillis)
+                    onIntentReady(intent)
+                },
+                onFailure = { err ->
+                    _statusMessage.value = "Unable to open Google Drive app: ${err.localizedMessage}"
+                }
+            )
+        }
+    }
+
     fun linkGoogleDriveSyncFile(uri: Uri) {
         viewModelScope.launch {
             repository.cloudSyncManager.persistDriveUriPermission(uri)
             repository.preferencesRepository.setCloudSyncUri(uri.toString())
             val syncResult = repository.syncToCloudUri(uri)
+            val accountHint = uiState.value.preferences.googleAccountEmail?.let { " ($it)" } ?: ""
             _statusMessage.value = if (syncResult.isSuccess) {
-                "Google Drive Auto-Sync linked & backed up!"
+                "Google Drive Auto-Sync linked & backed up$accountHint!"
             } else {
                 "Linked URI, but initial sync failed: ${syncResult.exceptionOrNull()?.localizedMessage}"
             }

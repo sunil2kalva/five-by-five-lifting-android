@@ -26,7 +26,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -66,6 +65,20 @@ class MainActivity : ComponentActivity() {
                 val navController = rememberNavController()
                 val snackbarHostState = remember { SnackbarHostState() }
 
+                /**
+                 * Deterministic top-level tab navigation:
+                 * Always clears the backstack so tapping "Home" (or any other bottom bar item)
+                 * 100% guarantees opening that exact screen and never gets stuck on Settings.
+                 */
+                fun navigateToTab(tab: MainTab) {
+                    navController.navigate(tab.route) {
+                        popUpTo(0) {
+                            inclusive = true
+                        }
+                        launchSingleTop = true
+                    }
+                }
+
                 LaunchedEffect(uiState.statusMessage) {
                     val msg = uiState.statusMessage
                     if (!msg.isNullOrBlank()) {
@@ -83,15 +96,7 @@ class MainActivity : ComponentActivity() {
                             MainTab.entries.forEach { tab ->
                                 NavigationBarItem(
                                     selected = currentRoute == tab.route,
-                                    onClick = {
-                                        navController.navigate(tab.route) {
-                                            popUpTo(navController.graph.findStartDestination().id) {
-                                                saveState = true
-                                            }
-                                            launchSingleTop = true
-                                            restoreState = true
-                                        }
-                                    },
+                                    onClick = { navigateToTab(tab) },
                                     icon = { Icon(tab.icon, contentDescription = tab.label) },
                                     label = { Text(tab.label) }
                                 )
@@ -114,12 +119,12 @@ class MainActivity : ComponentActivity() {
                                 onSaveCustomExercise = viewModel::saveCustomExerciseConfig,
                                 onStartOrResumeWorkout = {
                                     viewModel.startOrResumeWorkout {
-                                        navController.navigate(MainTab.WORKOUT.route)
+                                        navigateToTab(MainTab.WORKOUT)
                                     }
                                 },
                                 onUpdateExerciseWeight = viewModel::updateWorkingWeight,
                                 onNavigateToSettings = {
-                                    navController.navigate(MainTab.SETTINGS.route)
+                                    navigateToTab(MainTab.SETTINGS)
                                 }
                             )
                         }
@@ -151,12 +156,12 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onDiscardWorkout = {
                                     viewModel.discardActiveWorkout {
-                                        navController.navigate(MainTab.HOME.route)
+                                        navigateToTab(MainTab.HOME)
                                     }
                                 },
                                 onDismissSummary = {
                                     viewModel.dismissCompletionSummary()
-                                    navController.navigate(MainTab.HOME.route)
+                                    navigateToTab(MainTab.HOME)
                                 }
                             )
                         }
@@ -182,6 +187,11 @@ class MainActivity : ComponentActivity() {
                                 onSelectBarbellWeightDisplay = viewModel::setBarbellWeightDisplay,
                                 onUpdateExerciseWeight = viewModel::updateWorkingWeight,
                                 onToggleAutoSync = viewModel::setAutoSyncEnabled,
+                                onSelectGoogleAccountEmail = viewModel::setGoogleAccountEmail,
+                                buildChooseGoogleAccountIntent = viewModel::buildChooseGoogleAccountIntent,
+                                buildCreateGoogleDriveFileIntent = viewModel::buildCreateGoogleDriveFileIntent,
+                                buildOpenGoogleDriveFileIntent = viewModel::buildOpenGoogleDriveFileIntent,
+                                onLaunchDirectSaveToGoogleDriveApp = viewModel::launchDirectSaveToGoogleDriveApp,
                                 onLinkGoogleDriveSyncFile = viewModel::linkGoogleDriveSyncFile,
                                 onTriggerManualCloudSync = viewModel::triggerManualCloudSync,
                                 onRestoreFromGoogleDriveUri = viewModel::restoreOrMergeFromGoogleDriveUri,

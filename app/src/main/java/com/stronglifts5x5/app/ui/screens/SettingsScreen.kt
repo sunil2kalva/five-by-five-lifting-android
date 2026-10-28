@@ -1,5 +1,8 @@
 package com.stronglifts5x5.app.ui.screens
 
+import android.accounts.AccountManager
+import android.app.Activity
+import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -29,16 +32,24 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.stronglifts5x5.app.data.model.ExerciseType
 import com.stronglifts5x5.app.data.model.WeightUnit
 import com.stronglifts5x5.app.ui.StrengthUiState
 import com.stronglifts5x5.app.ui.components.PlateCalculatorSheet
+import com.stronglifts5x5.app.ui.theme.AccentBlue
 import com.stronglifts5x5.app.ui.theme.EmeraldSuccess
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+
+private enum class PendingDriveAction {
+    NONE,
+    CREATE_SYNC_FILE,
+    OPEN_RESTORE_FILE
+}
 
 @Composable
 fun SettingsScreen(
@@ -47,28 +58,67 @@ fun SettingsScreen(
     onSelectBarbellWeightDisplay: (Double) -> Unit,
     onUpdateExerciseWeight: (ExerciseType, Double) -> Unit,
     onToggleAutoSync: (Boolean) -> Unit,
+    onSelectGoogleAccountEmail: (String) -> Unit,
+    buildChooseGoogleAccountIntent: () -> Intent,
+    buildCreateGoogleDriveFileIntent: (String?) -> Intent,
+    buildOpenGoogleDriveFileIntent: (String?) -> Intent,
+    onLaunchDirectSaveToGoogleDriveApp: ((Intent) -> Unit) -> Unit,
     onLinkGoogleDriveSyncFile: (Uri) -> Unit,
     onTriggerManualCloudSync: () -> Unit,
     onRestoreFromGoogleDriveUri: (Uri) -> Unit,
     onExportCsvToUri: (Uri) -> Unit
 ) {
+    val context = LocalContext.current
     val prefs = uiState.preferences
     val unit = prefs.weightUnit
     var editingExercise by remember { mutableStateOf<ExerciseType?>(null) }
+    var pendingDriveAction by remember { mutableStateOf(PendingDriveAction.NONE) }
 
-    val linkDriveLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("application/json")
-    ) { uri: Uri? ->
-        if (uri != null) {
-            onLinkGoogleDriveSyncFile(uri)
+    // 1. Launcher for creating a backup file in the selected Google Account's Google Drive
+    val createDriveDocLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.data?.let { uri ->
+                onLinkGoogleDriveSyncFile(uri)
+            }
         }
     }
 
-    val restoreDriveLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument()
-    ) { uri: Uri? ->
-        if (uri != null) {
-            onRestoreFromGoogleDriveUri(uri)
+    // 2. Launcher for opening/restoring a backup file from the selected Google Account's Google Drive
+    val openDriveDocLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.data?.let { uri ->
+                onRestoreFromGoogleDriveUri(uri)
+            }
+        }
+    }
+
+    // 3. Native Android Google Account Picker Launcher (lists all logged-in Google users on the phone)
+    val googleAccountPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        val chosenEmail = if (result.resultCode == Activity.RESULT_OK) {
+            result.data?.getStringExtra(AccountManager.KEY_ACCOUNT_NAME)
+        } else {
+            null
+        }
+        if (!chosenEmail.isNullOrBlank()) {
+            onSelectGoogleAccountEmail(chosenEmail)
+        }
+        val effectiveEmail = chosenEmail ?: prefs.googleAccountEmail
+        when (pendingDriveAction) {
+            PendingDriveAction.CREATE_SYNC_FILE -> {
+                pendingDriveAction = PendingDriveAction.NONE
+                createDriveDocLauncher.launch(buildCreateGoogleDriveFileIntent(effectiveEmail))
+            }
+            PendingDriveAction.OPEN_RESTORE_FILE -> {
+                pendingDriveAction = PendingDriveAction.NONE
+                openDriveDocLauncher.launch(buildOpenGoogleDriveFileIntent(effectiveEmail))
+            }
+            PendingDriveAction.NONE -> {}
         }
     }
 
@@ -93,7 +143,7 @@ fun SettingsScreen(
             fontWeight = FontWeight.ExtraBold
         )
 
-        // 1. Cloud Backup & Google Drive Auto-Sync Card
+        // 1. Google Account & Google Drive Cloud Backup Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -106,16 +156,60 @@ fun SettingsScreen(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Text(
-                    text = "Cloud Backup & New Phone Restore ($0 Cost)",
+                    text = "Google Account & Drive Cloud Backup",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    text = "✓ Layer 1: Android OS Auto-Backup is active for your Google Account.\n" +
-                        "✓ Layer 2: Link a file in your Google Drive below so every finished workout auto-syncs to your cloud.",
+                    text = "Step 1: Pick the Google Account logged into this phone.\n" +
+                        "Step 2: Store or link your backup file directly inside that Google Account's Google Drive.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
+
+                // Selected Google Account Box
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Selected Google User on Device",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                text = prefs.googleAccountEmail ?: "Tap 'Pick Account' to choose user",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = if (prefs.googleAccountEmail != null) {
+                                    AccentBlue
+                                } else {
+                                    MaterialTheme.colorScheme.onSurface
+                                }
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = {
+                                pendingDriveAction = PendingDriveAction.NONE
+                                googleAccountPickerLauncher.launch(buildChooseGoogleAccountIntent())
+                            }
+                        ) {
+                            Text(if (prefs.googleAccountEmail == null) "Pick Account" else "Switch User")
+                        }
+                    }
+                }
 
                 val lastSyncStr = prefs.lastCloudSyncEpochMillis?.let {
                     SimpleDateFormat("MMM d, yyyy • h:mm a", Locale.US).format(Date(it))
@@ -142,21 +236,42 @@ fun SettingsScreen(
                     )
                 }
 
+                // Option A: Open Google Drive App Directly (shows Drive's native Account & Folder picker)
+                Button(
+                    onClick = {
+                        onLaunchDirectSaveToGoogleDriveApp { driveIntent ->
+                            context.startActivity(driveIntent)
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Save Backup in Google Drive App (Pick Folder)")
+                }
+
+                // Option B: Link Persistent Google Drive File for Background Auto-Sync
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Button(
+                    OutlinedButton(
                         onClick = {
-                            linkDriveLauncher.launch("stronglifts5x5_cloud_sync.json")
+                            if (prefs.googleAccountEmail.isNullOrBlank()) {
+                                // Ask user to pick their logged-in Google Account first, then open Drive
+                                pendingDriveAction = PendingDriveAction.CREATE_SYNC_FILE
+                                googleAccountPickerLauncher.launch(buildChooseGoogleAccountIntent())
+                            } else {
+                                createDriveDocLauncher.launch(
+                                    buildCreateGoogleDriveFileIntent(prefs.googleAccountEmail)
+                                )
+                            }
                         },
                         modifier = Modifier.weight(1f)
                     ) {
                         Text(
                             if (prefs.cloudSyncUriString.isNullOrBlank()) {
-                                "Link Google Drive File"
+                                "Link Drive Auto-Sync File"
                             } else {
-                                "Change Drive File"
+                                "Change Auto-Sync File"
                             }
                         )
                     }
@@ -171,9 +286,17 @@ fun SettingsScreen(
                     }
                 }
 
+                // Option C: Restore / Merge from the user's Google Drive
                 OutlinedButton(
                     onClick = {
-                        restoreDriveLauncher.launch(arrayOf("application/json", "*/*"))
+                        if (prefs.googleAccountEmail.isNullOrBlank()) {
+                            pendingDriveAction = PendingDriveAction.OPEN_RESTORE_FILE
+                            googleAccountPickerLauncher.launch(buildChooseGoogleAccountIntent())
+                        } else {
+                            openDriveDocLauncher.launch(
+                                buildOpenGoogleDriveFileIntent(prefs.googleAccountEmail)
+                            )
+                        }
                     },
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -265,7 +388,7 @@ fun SettingsScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = exercise.displayName,
+                            text = uiState.exerciseDisplayName(exercise),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold
                         )
