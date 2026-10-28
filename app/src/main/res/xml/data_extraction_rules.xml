@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Android 12+ (API 31+) Cloud Backup & Device-to-Device Transfer rules.
+   Ensures all workout history and progression states transfer automatically
+   when logging into a new Android phone with the same Google Account.
+-->
+<data-extraction-rules>
+    <cloud-backup>
+        <include domain="database" path="stronglifts_5x5.db" />
+        <include domain="database" path="stronglifts_5x5.db-shm" />
+        <include domain="database" path="stronglifts_5x5.db-wal" />
+        <include domain="file" path="datastore/user_prefs.preferences_pb" />
+    </cloud-backup>
+    <device-transfer>
+        <include domain="database" path="stronglifts_5x5.db" />
+        <include domain="database" path="stronglifts_5x5.db-shm" />
+        <include domain="database" path="stronglifts_5x5.db-wal" />
+        <include domain="file" path="datastore/user_prefs.preferences_pb" />
+    </device-transfer>
+</data-extraction-rules>

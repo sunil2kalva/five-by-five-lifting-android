@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Android Auto-Backup rules (API 23 - 30)
+   Explicitly backs up the Room SQLite database and DataStore preferences
+   to the user's Google Account / Google Drive (~25 MB free quota per app).
+-->
+<full-backup-content>
+    <include domain="database" path="stronglifts_5x5.db" />
+    <include domain="database" path="stronglifts_5x5.db-shm" />
+    <include domain="database" path="stronglifts_5x5.db-wal" />
+    <include domain="file" path="datastore/user_prefs.preferences_pb" />
+</full-backup-content>
