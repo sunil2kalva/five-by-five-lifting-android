@@ -21,27 +21,53 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - name: Ensure Persistent Android Signing Keystore & Export SHA-1
+        run: |
+          mkdir -p app/signing
+          if [ ! -f app/signing/fivebyfive.keystore ]; then
+            keytool -genkeypair -v \
+              -keystore app/signing/fivebyfive.keystore \
+              -storetype PKCS12 \
+              -alias fivebyfive \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -storepass fivebyfive123 \
+              -keypass fivebyfive123 \
+              -dname "CN=Five By Five Lifting, OU=Mobile, O=FiveByFiveLifting, L=SanJose, ST=CA, C=US"
+          fi
+          keytool -list -v \
+            -keystore app/signing/fivebyfive.keystore \
+            -alias fivebyfive \
+            -storepass fivebyfive123 > app/signing/signing-info.txt
+          cat app/signing/signing-info.txt
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
           gradle-version: '8.9'
 
-      - name: Run Unit Tests & Assemble Debug APK
+      - name: Run Unit Tests & Assemble Signed Debug APK
         run: |
           gradle testDebugUnitTest assembleDebug --no-daemon
           cp app/build/outputs/apk/debug/app-debug.apk FiveByFiveLifting-s26plus-debug.apk
 
-      - name: Upload APK Artifact
+      - name: Upload APK & Signing Keystore Artifact
         uses: actions/upload-artifact@v4
         with:
           name: FiveByFiveLifting-s26plus-debug-apk
-          path: FiveByFiveLifting-s26plus-debug.apk
+          path: |
+            FiveByFiveLifting-s26plus-debug.apk
+            app/signing/fivebyfive.keystore
+            app/signing/signing-info.txt
 
       - name: Publish APK to GitHub Releases (v1.4.0)
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.4.0
-          name: "Five By Five Lifting Android v1.4.0 (Full Rebrand to Five By Five Lifting)"
-          body: "Signed debug APK for Samsung S26+. Rebrands app name, package namespace (com.fivebyfivelifting.app), database, and backup identifiers to Five By Five Lifting."
-          files: FiveByFiveLifting-s26plus-debug.apk
+          name: "Five By Five Lifting Android v1.4.0 (Full Rebrand + Persistent Signing Keystore)"
+          body: "Signed debug APK for Samsung S26+. Rebrands app name, package namespace (com.fivebyfivelifting.app), database, and backup identifiers to Five By Five Lifting, signed with persistent project keystore."
+          files: |
+            FiveByFiveLifting-s26plus-debug.apk
+            app/signing/signing-info.txt
           prerelease: false

@@ -193,6 +193,9 @@ def main():
     artifact = artifacts[0]
     archive_url = artifact["archive_download_url"]
     zip_bytes = download_bytes(archive_url)
+    found_apk = False
+    signing_dir = os.path.join(OUT_DIR, "app", "signing")
+    os.makedirs(signing_dir, exist_ok=True)
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
         for name in zf.namelist():
             if name.endswith(".apk"):
@@ -200,10 +203,26 @@ def main():
                 with open(APK_DEST, "wb") as f:
                     f.write(apk_data)
                 print(f"SUCCESS! APK downloaded to: {APK_DEST} ({len(apk_data)} bytes)")
-                return
+                found_apk = True
+            elif name.endswith("fivebyfive.keystore"):
+                ks_dest = os.path.join(signing_dir, "fivebyfive.keystore")
+                with open(ks_dest, "wb") as f:
+                    f.write(zf.read(name))
+                print(f"Saved persistent keystore to: {ks_dest}")
+            elif name.endswith("signing-info.txt"):
+                info_text = zf.read(name).decode("utf-8", errors="replace")
+                info_dest = os.path.join(signing_dir, "signing-info.txt")
+                with open(info_dest, "w", encoding="utf-8") as f:
+                    f.write(info_text)
+                print("\n=== ANDROID SIGNING CERTIFICATE FINGERPRINTS ===")
+                for line in info_text.splitlines():
+                    if any(k in line for k in ("Alias name:", "Owner:", "SHA1:", "SHA256:", "SHA-1", "SHA-256")):
+                        print(line.strip())
+                print("================================================\n")
 
-    print("No .apk file found inside artifact zip!")
-    sys.exit(5)
+    if not found_apk:
+        print("No .apk file found inside artifact zip!")
+        sys.exit(5)
 
 
 if __name__ == "__main__":

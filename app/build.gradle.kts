@@ -23,9 +23,25 @@ android {
         }
     }
 
+    signingConfigs {
+        val keystoreFile = file("signing/fivebyfive.keystore")
+        if (keystoreFile.exists()) {
+            getByName("debug") {
+                storeFile = keystoreFile
+                storePassword = "fivebyfive123"
+                keyAlias = "fivebyfive"
+                keyPassword = "fivebyfive123"
+            }
+        }
+    }
+
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debug")
+        }
         release {
             isMinifyEnabled = false
+            signingConfig = signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
