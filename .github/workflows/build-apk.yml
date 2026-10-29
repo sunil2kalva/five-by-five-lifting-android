@@ -37,11 +37,11 @@ jobs:
           name: StrongLifts5x5-s26plus-debug-apk
           path: StrongLifts5x5-s26plus-debug.apk
 
-      - name: Publish APK to GitHub Releases (v1.2.0)
+      - name: Publish APK to GitHub Releases (v1.3.0)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.2.0
-          name: "StrongLifts 5x5 Android v1.2.0 (Home Nav Fix + Google Account & Drive Picker)"
-          body: "Signed debug APK for Samsung S26+. Fixes Home tab navigation bug and adds native Google Account selection + direct Google Drive account folder/file system integration."
+          tag_name: v1.3.0
+          name: "StrongLifts 5x5 Android v1.3.0 (Clear Google Drive Backup Status & Simplified Settings)"
+          body: "Signed debug APK for Samsung S26+. Redesigns Settings Google Drive Backup card to clearly display Configured Status (Google User + Backup File + Change options), removes Link Drive Auto-Sync File, and only shows Restore/Merge when backup/sync is not configured."
           files: StrongLifts5x5-s26plus-debug.apk
           prerelease: false

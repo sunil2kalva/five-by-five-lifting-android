@@ -91,9 +91,9 @@ fun HomeScreen(
                 AssistChip(
                     onClick = onNavigateToSettings,
                     label = {
-                        val isDriveLinked = !uiState.preferences.cloudSyncUriString.isNullOrBlank()
+                        val isDriveConfigured = uiState.preferences.isBackupSetupComplete
                         Text(
-                            text = if (isDriveLinked) "Drive Auto-Sync ON" else "Android Cloud Backup",
+                            text = if (isDriveConfigured) "Drive Backup ON" else "Android Cloud Backup",
                             color = EmeraldSuccess
                         )
                     }

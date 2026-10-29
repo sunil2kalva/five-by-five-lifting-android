@@ -189,11 +189,8 @@ class MainActivity : ComponentActivity() {
                                 onToggleAutoSync = viewModel::setAutoSyncEnabled,
                                 onSelectGoogleAccountEmail = viewModel::setGoogleAccountEmail,
                                 buildChooseGoogleAccountIntent = viewModel::buildChooseGoogleAccountIntent,
-                                buildCreateGoogleDriveFileIntent = viewModel::buildCreateGoogleDriveFileIntent,
                                 buildOpenGoogleDriveFileIntent = viewModel::buildOpenGoogleDriveFileIntent,
                                 onLaunchDirectSaveToGoogleDriveApp = viewModel::launchDirectSaveToGoogleDriveApp,
-                                onLinkGoogleDriveSyncFile = viewModel::linkGoogleDriveSyncFile,
-                                onTriggerManualCloudSync = viewModel::triggerManualCloudSync,
                                 onRestoreFromGoogleDriveUri = viewModel::restoreOrMergeFromGoogleDriveUri,
                                 onExportCsvToUri = viewModel::exportCsvToUri
                             )

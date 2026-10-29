@@ -383,17 +383,27 @@ class StrengthViewModel(
     fun buildOpenGoogleDriveFileIntent(accountEmail: String?): Intent =
         repository.cloudSyncManager.buildOpenGoogleDriveFileIntent(accountEmail = accountEmail)
 
-    fun launchDirectSaveToGoogleDriveApp(onIntentReady: (Intent) -> Unit) {
+    fun launchDirectSaveToGoogleDriveApp(
+        accountEmailOverride: String? = null,
+        onIntentReady: (Intent) -> Unit
+    ) {
         viewModelScope.launch {
+            val email = accountEmailOverride?.takeIf { it.isNotBlank() }
+                ?: uiState.value.preferences.googleAccountEmail
+            if (!accountEmailOverride.isNullOrBlank()) {
+                repository.preferencesRepository.setGoogleAccountEmail(accountEmailOverride)
+            }
             val snapshot = repository.buildBackupSnapshot()
-            val email = uiState.value.preferences.googleAccountEmail
             val intentResult = repository.cloudSyncManager.buildSaveDirectlyToGoogleDriveAppIntent(
                 snapshot = snapshot,
                 accountEmail = email
             )
             intentResult.fold(
                 onSuccess = { intent ->
-                    repository.preferencesRepository.recordCloudSyncSuccess(snapshot.exportedAtEpochMillis)
+                    repository.preferencesRepository.markCloudBackupFileConfigured(
+                        fileName = "stronglifts5x5_cloud_sync.json",
+                        timestampMillis = snapshot.exportedAtEpochMillis
+                    )
                     onIntentReady(intent)
                 },
                 onFailure = { err ->
@@ -407,10 +417,13 @@ class StrengthViewModel(
         viewModelScope.launch {
             repository.cloudSyncManager.persistDriveUriPermission(uri)
             repository.preferencesRepository.setCloudSyncUri(uri.toString())
+            repository.preferencesRepository.markCloudBackupFileConfigured(
+                fileName = "stronglifts5x5_cloud_sync.json"
+            )
             val syncResult = repository.syncToCloudUri(uri)
             val accountHint = uiState.value.preferences.googleAccountEmail?.let { " ($it)" } ?: ""
             _statusMessage.value = if (syncResult.isSuccess) {
-                "Google Drive Auto-Sync linked & backed up$accountHint!"
+                "Google Drive backup configured$accountHint!"
             } else {
                 "Linked URI, but initial sync failed: ${syncResult.exceptionOrNull()?.localizedMessage}"
             }
@@ -418,13 +431,25 @@ class StrengthViewModel(
     }
 
     fun triggerManualCloudSync() {
-        val uriStr = uiState.value.preferences.cloudSyncUriString ?: return
+        val uriStr = uiState.value.preferences.cloudSyncUriString
         viewModelScope.launch {
-            val result = repository.syncToCloudUri(Uri.parse(uriStr))
-            _statusMessage.value = if (result.isSuccess) {
-                "Synced all workouts to Google Drive!"
+            if (!uriStr.isNullOrBlank()) {
+                val result = repository.syncToCloudUri(Uri.parse(uriStr))
+                _statusMessage.value = if (result.isSuccess) {
+                    "Synced all workouts to Google Drive!"
+                } else {
+                    "Cloud sync failed: ${result.exceptionOrNull()?.localizedMessage}"
+                }
             } else {
-                "Cloud sync failed: ${result.exceptionOrNull()?.localizedMessage}"
+                val snapshot = repository.buildBackupSnapshot()
+                runCatching { repository.cloudSyncManager.writeLocalBackupMirror(snapshot) }
+                    .onSuccess {
+                        repository.preferencesRepository.recordCloudSyncSuccess(snapshot.exportedAtEpochMillis)
+                        _statusMessage.value = "Backup snapshot updated!"
+                    }
+                    .onFailure { err ->
+                        _statusMessage.value = "Backup update failed: ${err.localizedMessage}"
+                    }
             }
         }
     }
@@ -433,6 +458,9 @@ class StrengthViewModel(
         viewModelScope.launch {
             repository.cloudSyncManager.persistDriveUriPermission(uri)
             repository.preferencesRepository.setCloudSyncUri(uri.toString())
+            repository.preferencesRepository.markCloudBackupFileConfigured(
+                fileName = "stronglifts5x5_cloud_sync.json"
+            )
             val result = repository.restoreFromCloudUri(uri, mergeWithLocal = mergeWithLocal)
             _statusMessage.value = result.fold(
                 onSuccess = { count -> "Restored & merged $count workouts from Google Drive!" },

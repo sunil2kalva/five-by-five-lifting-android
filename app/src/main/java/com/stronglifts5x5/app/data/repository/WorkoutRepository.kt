@@ -304,10 +304,22 @@ class WorkoutRepository(
         var cloudSynced = false
         var cloudError: String? = null
         val driveUriStr = prefs.cloudSyncUriString
-        if (prefs.autoSyncEnabled && !driveUriStr.isNullOrBlank()) {
-            val syncResult = syncToCloudUri(Uri.parse(driveUriStr))
-            cloudSynced = syncResult.isSuccess
-            cloudError = syncResult.exceptionOrNull()?.localizedMessage
+        if (prefs.autoSyncEnabled && prefs.isBackupFileConfigured) {
+            if (!driveUriStr.isNullOrBlank()) {
+                val syncResult = syncToCloudUri(Uri.parse(driveUriStr))
+                cloudSynced = syncResult.isSuccess
+                cloudError = syncResult.exceptionOrNull()?.localizedMessage
+            } else {
+                val snapshot = buildBackupSnapshot()
+                runCatching { cloudSyncManager.writeLocalBackupMirror(snapshot) }
+                    .onSuccess {
+                        preferencesRepository.recordCloudSyncSuccess(snapshot.exportedAtEpochMillis)
+                        cloudSynced = true
+                    }
+                    .onFailure { err ->
+                        cloudError = err.localizedMessage
+                    }
+            }
         }
 
         return WorkoutCompletionSummary(

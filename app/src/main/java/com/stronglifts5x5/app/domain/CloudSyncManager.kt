@@ -111,6 +111,17 @@ class CloudSyncManager(private val context: Context) {
     }
 
     /**
+     * Writes the latest JSON backup snapshot to the app's backup file (`stronglifts5x5_cloud_sync.json`).
+     */
+    suspend fun writeLocalBackupMirror(snapshot: AppBackupSnapshot): File = withContext(Dispatchers.IO) {
+        val backupDir = File(context.cacheDir, "backups").apply { mkdirs() }
+        val backupFile = File(backupDir, "stronglifts5x5_cloud_sync.json")
+        val jsonPayload = BackupExportManager.toJson(snapshot)
+        backupFile.writeText(jsonPayload, Charsets.UTF_8)
+        backupFile
+    }
+
+    /**
      * Writes the JSON snapshot to a temporary file and builds an intent that opens the
      * official Google Drive app (`com.google.android.apps.docs`) directly so the user sees
      * Google Drive's own native Account & Folder picker screen.
@@ -120,10 +131,7 @@ class CloudSyncManager(private val context: Context) {
         accountEmail: String?
     ): Result<Intent> = withContext(Dispatchers.IO) {
         runCatching {
-            val backupDir = File(context.cacheDir, "backups").apply { mkdirs() }
-            val backupFile = File(backupDir, "stronglifts5x5_cloud_sync.json")
-            val jsonPayload = BackupExportManager.toJson(snapshot)
-            backupFile.writeText(jsonPayload, Charsets.UTF_8)
+            val backupFile = writeLocalBackupMirror(snapshot)
 
             val contentUri = FileProvider.getUriForFile(
                 context,

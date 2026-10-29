@@ -22,10 +22,27 @@ data class UserPreferences(
     val nextWorkoutOverride: WorkoutType? = null,
     val googleAccountEmail: String? = null,
     val cloudSyncUriString: String? = null,
+    val cloudBackupFileName: String? = null,
+    val cloudBackupConfigured: Boolean = false,
     val autoSyncEnabled: Boolean = true,
     val lastCloudSyncEpochMillis: Long? = null,
     val soundAndVibrationEnabled: Boolean = true
-)
+) {
+    val isBackupFileConfigured: Boolean
+        get() = cloudBackupConfigured ||
+            !cloudSyncUriString.isNullOrBlank() ||
+            lastCloudSyncEpochMillis != null
+
+    val isBackupSetupComplete: Boolean
+        get() = !googleAccountEmail.isNullOrBlank() && isBackupFileConfigured
+
+    val isSyncConfiguredAndWorking: Boolean
+        get() = isBackupSetupComplete && autoSyncEnabled
+
+    val effectiveBackupFileName: String
+        get() = cloudBackupFileName?.takeIf { it.isNotBlank() }
+            ?: "stronglifts5x5_cloud_sync.json"
+}
 
 class UserPreferencesRepository(private val context: Context) {
 
@@ -35,6 +52,8 @@ class UserPreferencesRepository(private val context: Context) {
         val NEXT_WORKOUT_OVERRIDE = stringPreferencesKey("next_workout_override")
         val GOOGLE_ACCOUNT_EMAIL = stringPreferencesKey("google_account_email")
         val CLOUD_SYNC_URI = stringPreferencesKey("cloud_sync_uri")
+        val CLOUD_BACKUP_FILE_NAME = stringPreferencesKey("cloud_backup_file_name")
+        val CLOUD_BACKUP_CONFIGURED = booleanPreferencesKey("cloud_backup_configured")
         val AUTO_SYNC_ENABLED = booleanPreferencesKey("auto_sync_enabled")
         val LAST_CLOUD_SYNC_MS = longPreferencesKey("last_cloud_sync_ms")
         val SOUND_VIBRATION = booleanPreferencesKey("sound_vibration_enabled")
@@ -54,6 +73,8 @@ class UserPreferencesRepository(private val context: Context) {
             nextWorkoutOverride = overrideWorkout,
             googleAccountEmail = prefs[Keys.GOOGLE_ACCOUNT_EMAIL],
             cloudSyncUriString = prefs[Keys.CLOUD_SYNC_URI],
+            cloudBackupFileName = prefs[Keys.CLOUD_BACKUP_FILE_NAME],
+            cloudBackupConfigured = prefs[Keys.CLOUD_BACKUP_CONFIGURED] ?: false,
             autoSyncEnabled = prefs[Keys.AUTO_SYNC_ENABLED] ?: true,
             lastCloudSyncEpochMillis = prefs[Keys.LAST_CLOUD_SYNC_MS],
             soundAndVibrationEnabled = prefs[Keys.SOUND_VIBRATION] ?: true
@@ -99,8 +120,21 @@ class UserPreferencesRepository(private val context: Context) {
                 prefs.remove(Keys.CLOUD_SYNC_URI)
             } else {
                 prefs[Keys.CLOUD_SYNC_URI] = uriString
+                prefs[Keys.CLOUD_BACKUP_CONFIGURED] = true
                 prefs[Keys.AUTO_SYNC_ENABLED] = true
             }
+        }
+    }
+
+    suspend fun markCloudBackupFileConfigured(
+        fileName: String = "stronglifts5x5_cloud_sync.json",
+        timestampMillis: Long = System.currentTimeMillis()
+    ) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.CLOUD_BACKUP_FILE_NAME] = fileName
+            prefs[Keys.CLOUD_BACKUP_CONFIGURED] = true
+            prefs[Keys.AUTO_SYNC_ENABLED] = true
+            prefs[Keys.LAST_CLOUD_SYNC_MS] = timestampMillis
         }
     }
 
@@ -112,6 +146,7 @@ class UserPreferencesRepository(private val context: Context) {
 
     suspend fun recordCloudSyncSuccess(timestampMillis: Long = System.currentTimeMillis()) {
         context.dataStore.edit { prefs ->
+            prefs[Keys.CLOUD_BACKUP_CONFIGURED] = true
             prefs[Keys.LAST_CLOUD_SYNC_MS] = timestampMillis
         }
     }
