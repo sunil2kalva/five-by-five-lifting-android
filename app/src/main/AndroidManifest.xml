@@ -12,19 +12,19 @@
     </queries>
 
     <application
-        android:name=".StrongLiftsApplication"
+        android:name=".FiveByFiveLiftingApplication"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:label="@string/app_name"
         android:supportsRtl="true"
-        android:theme="@style/Theme.StrongLifts5x5"
+        android:theme="@style/Theme.FiveByFiveLifting"
         tools:targetApi="34">
 
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:theme="@style/Theme.StrongLifts5x5"
+            android:theme="@style/Theme.FiveByFiveLifting"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

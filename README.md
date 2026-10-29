@@ -1,6 +1,6 @@
-# StrongLifts 5x5 — Native Android App (Kotlin + Jetpack Compose + Room SQLite)
+# Five By Five Lifting — Native Android App (Kotlin + Jetpack Compose + Room SQLite)
 
-A 100% offline-first Native Android strength tracker replicating the **StrongLifts 5×5** workout program, including "Pro" features (Visual Barbell Plate Calculator, Progressive Warm-Up Calculator, Progress Charts, Workout Calendar, and 3-Layer Zero-Cost Cloud Sync).
+A 100% offline-first Native Android strength tracker replicating the **Five By Five Lifting** workout program, including "Pro" features (Visual Barbell Plate Calculator, Progressive Warm-Up Calculator, Progress Charts, Workout Calendar, and 3-Layer Zero-Cost Cloud Sync).
 
 ## Features Included
 1. **Alternating Workout A & Workout B (3x/week):**
@@ -19,13 +19,13 @@ A 100% offline-first Native Android strength tracker replicating the **StrongLif
 5. **Visual Barbell Plate Calculator & Progressive Warm-Up Generator:**
    - Shows color-coded Olympic plates per side (`lb` and `kg`) and calculates warm-up sets from the empty bar (`2×5 @ 45 lb / 20 kg`) up to the working weight.
 6. **Zero-Cost Cloud Sync (Survives Switching Phones for $0/month):**
-   - **Layer 1 — Android OS Auto-Backup (`backup_rules.xml` & `data_extraction_rules.xml`):** Automatically backs up the local `stronglifts_5x5.db` Room SQLite database and DataStore settings to your Google Account and restores them on any new Android phone.
+   - **Layer 1 — Android OS Auto-Backup (`backup_rules.xml` & `data_extraction_rules.xml`):** Automatically backs up the local `five_by_five_lifting.db` Room SQLite database and DataStore settings to your Google Account and restores them on any new Android phone.
    - **Layer 2 — Automatic Post-Workout Google Drive Sync (`CloudSyncManager.kt`):** Link a file in your personal Google Drive from the **Settings** tab; every completed workout automatically uploads your full workout history to Google Drive, and **Restore / Merge from Google Drive** combines workouts across devices without duplicates.
    - **Layer 3 — CSV & JSON Export:** Export full workout logs to `.csv` for Excel/Google Sheets.
 
 ## How to Open & Run
 1. Open **Android Studio** (Ladybug / Koala or newer).
-2. Select **Open** and choose `/Users/sunilkalva/.gemini/jetski/scratch/stronglifts-5x5-android`.
+2. Select **Open** and choose `/Users/sunilkalva/.gemini/jetski/scratch/five-by-five-lifting-android`.
 3. Wait for Gradle Sync to complete, then click **Run (`▶`)** on an Android Emulator or physical Android device (API 26+).
 4. Run unit tests from Android Studio or terminal:
    ```bash

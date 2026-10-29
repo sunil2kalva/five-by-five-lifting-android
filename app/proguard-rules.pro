@@ -7,10 +7,10 @@
 -keepclasseswithmembers class kotlinx.serialization.json.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
--keep,includedescriptorclasses class com.stronglifts5x5.app.**$$serializer { *; }
--keepclassmembers class com.stronglifts5x5.app.** {
+-keep,includedescriptorclasses class com.fivebyfivelifting.app.**$$serializer { *; }
+-keepclassmembers class com.fivebyfivelifting.app.** {
     *** Companion;
 }
--keepclasseswithmembers class com.stronglifts5x5.app.** {
+-keepclasseswithmembers class com.fivebyfivelifting.app.** {
     kotlinx.serialization.KSerializer serializer(...);
 }

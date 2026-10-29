@@ -20,5 +20,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "StrongLifts5x5"
+rootProject.name = "FiveByFiveLifting"
 include(":app")

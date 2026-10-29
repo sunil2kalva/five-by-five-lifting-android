@@ -1,4 +1,4 @@
-name: Build StrongLifts 5x5 Android APK
+name: Build Five By Five Lifting Android APK
 
 on:
   push:
@@ -29,19 +29,19 @@ jobs:
       - name: Run Unit Tests & Assemble Debug APK
         run: |
           gradle testDebugUnitTest assembleDebug --no-daemon
-          cp app/build/outputs/apk/debug/app-debug.apk StrongLifts5x5-s26plus-debug.apk
+          cp app/build/outputs/apk/debug/app-debug.apk FiveByFiveLifting-s26plus-debug.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: StrongLifts5x5-s26plus-debug-apk
-          path: StrongLifts5x5-s26plus-debug.apk
+          name: FiveByFiveLifting-s26plus-debug-apk
+          path: FiveByFiveLifting-s26plus-debug.apk
 
-      - name: Publish APK to GitHub Releases (v1.3.0)
+      - name: Publish APK to GitHub Releases (v1.4.0)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.3.0
-          name: "StrongLifts 5x5 Android v1.3.0 (Clear Google Drive Backup Status & Simplified Settings)"
-          body: "Signed debug APK for Samsung S26+. Redesigns Settings Google Drive Backup card to clearly display Configured Status (Google User + Backup File + Change options), removes Link Drive Auto-Sync File, and only shows Restore/Merge when backup/sync is not configured."
-          files: StrongLifts5x5-s26plus-debug.apk
+          tag_name: v1.4.0
+          name: "Five By Five Lifting Android v1.4.0 (Full Rebrand to Five By Five Lifting)"
+          body: "Signed debug APK for Samsung S26+. Rebrands app name, package namespace (com.fivebyfivelifting.app), database, and backup identifiers to Five By Five Lifting."
+          files: FiveByFiveLifting-s26plus-debug.apk
           prerelease: false

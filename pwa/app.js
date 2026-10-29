@@ -1,7 +1,7 @@
-// StrongLifts 5x5 v1.1.0 Offline-First PWA Engine
+// Five By Five Lifting v1.1.0 Offline-First PWA Engine
 // Includes Pull-Down Workout Selector (A / B / C / D / E), Active Workout Switching, and Custom Workout Builder
 
-const STORAGE_KEY = 'stronglifts_5x5_pwa_state_v1';
+const STORAGE_KEY = 'fivebyfivelifting_5x5_pwa_state_v1';
 const LB_TO_KG = 0.45359237;
 
 const EXERCISES = {
@@ -1378,15 +1378,15 @@ window.exportJsonBackup = async function() {
 
   const jsonStr = JSON.stringify(snapshot, null, 2);
   const blob = new Blob([jsonStr], { type: 'application/json' });
-  const fileName = 'stronglifts5x5_cloud_sync.json';
+  const fileName = 'fivebyfivelifting_cloud_sync.json';
 
   if (navigator.canShare && navigator.share) {
     try {
       const file = new File([blob], fileName, { type: 'application/json' });
       if (navigator.canShare({ files: [file] })) {
         await navigator.share({
-          title: 'StrongLifts 5x5 Cloud Backup',
-          text: 'StrongLifts 5x5 workout database backup',
+          title: 'Five By Five Lifting Cloud Backup',
+          text: 'Five By Five Lifting workout database backup',
           files: [file]
         });
         render();
@@ -1403,7 +1403,7 @@ window.exportJsonBackup = async function() {
   a.click();
   URL.revokeObjectURL(url);
   render();
-  showToast('Downloaded stronglifts5x5_cloud_sync.json');
+  showToast('Downloaded fivebyfivelifting_cloud_sync.json');
 };
 
 window.triggerRestoreFilePicker = function() {
@@ -1469,10 +1469,10 @@ window.exportCsvBackup = function() {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'stronglifts5x5_workouts.csv';
+  a.download = 'fivebyfivelifting_workouts.csv';
   a.click();
   URL.revokeObjectURL(url);
-  showToast('Exported stronglifts5x5_workouts.csv');
+  showToast('Exported fivebyfivelifting_workouts.csv');
 };
 
 window.seedDemoWorkouts = function() {

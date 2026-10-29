@@ -1,4 +1,4 @@
-const CACHE_NAME = 'stronglifts-5x5-pwa-v1';
+const CACHE_NAME = 'five-by-five-lifting-pwa-v1';
 const ASSETS = [
   './',
   './index.html',

@@ -7,15 +7,15 @@ plugins {
 }
 
 android {
-    namespace = "com.stronglifts5x5.app"
+    namespace = "com.fivebyfivelifting.app"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.stronglifts5x5.app"
+        applicationId = "com.fivebyfivelifting.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 4
-        versionName = "1.3.0"
+        versionCode = 5
+        versionName = "1.4.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

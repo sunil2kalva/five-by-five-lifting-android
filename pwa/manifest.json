@@ -1,6 +1,6 @@
 {
-  "name": "StrongLifts 5x5 Strength Tracker",
-  "short_name": "StrongLifts 5x5",
+  "name": "Five By Five Lifting Strength Tracker",
+  "short_name": "Five By Five Lifting",
   "description": "Offline-first 5x5 Linear Progression Workout Logger with Smart Rest Timer, Plate Calculator, Warm-up Sets, and Google Drive Backup",
   "start_url": "./index.html",
   "scope": "./",
