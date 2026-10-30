@@ -21,6 +21,8 @@ import java.io.File
  */
 class CloudSyncManager(private val context: Context) {
 
+    val googleAuthManager: GoogleAuthManager = GoogleAuthManager(context)
+
     companion object {
         const val GOOGLE_DRIVE_PACKAGE = "com.google.android.apps.docs"
         const val GOOGLE_DRIVE_STORAGE_AUTHORITY = "com.google.android.apps.docs.storage"

@@ -91,10 +91,25 @@ fun HomeScreen(
                 AssistChip(
                     onClick = onNavigateToSettings,
                     label = {
-                        val isDriveConfigured = uiState.preferences.isBackupSetupComplete
+                        val prefs = uiState.preferences
+                        val labelText = when {
+                            prefs.isBackupSetupComplete -> {
+                                val shortName = prefs.googleDisplayName?.split(" ")?.firstOrNull()
+                                    ?: prefs.googleAccountEmail?.substringBefore("@")
+                                    ?: "Signed In"
+                                "✓ $shortName • Sync ON"
+                            }
+                            prefs.isSignedInWithGoogle -> {
+                                val shortName = prefs.googleDisplayName?.split(" ")?.firstOrNull()
+                                    ?: prefs.googleAccountEmail?.substringBefore("@")
+                                    ?: "Signed In"
+                                "✓ $shortName"
+                            }
+                            else -> "Sign in with Google"
+                        }
                         Text(
-                            text = if (isDriveConfigured) "Drive Backup ON" else "Android Cloud Backup",
-                            color = EmeraldSuccess
+                            text = labelText,
+                            color = if (prefs.isSignedInWithGoogle) EmeraldSuccess else AmberWarning
                         )
                     }
                 )

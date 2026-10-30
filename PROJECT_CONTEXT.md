@@ -6,7 +6,11 @@
 - **GitHub Username:** `sunil2kalva`
 - **Previous Conversation ID:** `a77fd8aa-2ecf-428a-b6e5-e845f56f4da8`
 - **Previous Conversation Transcript:** `/Users/sunilkalva/.gemini/jetski/brain/a77fd8aa-2ecf-428a-b6e5-e845f56f4da8/.system_generated/logs/transcript.jsonl`
-- **Latest Released Version:** `v1.2.0` (`versionCode = 3`, `versionName = "1.2.0"`)
+- **Android Package Name (`applicationId`):** `com.fivebyfivelifting.app`
+- **Persistent Signing Keystore:** [`app/signing/fivebyfive.keystore`](file:///Users/sunilkalva/.gemini/jetski/scratch/five-by-five-lifting-android/app/signing/fivebyfive.keystore)
+- **Signing Certificate SHA-1:** `B6:CF:F6:5F:A3:A6:CA:2B:2E:F1:DF:46:3D:14:0B:45:47:DD:24:A3`
+- **Signing Certificate SHA-256:** `15:B0:D3:61:58:63:8D:3C:83:41:9C:B4:5A:F6:7B:6E:6C:2F:F4:F2:09:19:02:80:5E:51:9F:50:95:5D:D1:0C`
+- **Latest Released Version:** `v1.4.0` (`versionCode = 5`, `versionName = "1.4.0"`)
 - **Latest Local APK Binary:** `/Users/sunilkalva/.gemini/jetski/scratch/five-by-five-lifting-android/FiveByFiveLifting-s26plus-debug.apk`
 
 ---

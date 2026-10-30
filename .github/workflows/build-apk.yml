@@ -61,12 +61,12 @@ jobs:
             app/signing/fivebyfive.keystore
             app/signing/signing-info.txt
 
-      - name: Publish APK to GitHub Releases (v1.4.0)
+      - name: Publish APK to GitHub Releases (v1.5.0)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.4.0
-          name: "Five By Five Lifting Android v1.4.0 (Full Rebrand + Persistent Signing Keystore)"
-          body: "Signed debug APK for Samsung S26+. Rebrands app name, package namespace (com.fivebyfivelifting.app), database, and backup identifiers to Five By Five Lifting, signed with persistent project keystore."
+          tag_name: v1.5.0
+          name: "Five By Five Lifting Android v1.5.0 (Native Sign in with Google)"
+          body: "Signed debug APK for Samsung S26+. Adds native Google Sign-In via Google Play Services Auth configured with GCP OAuth 2.0 Client ID and signed with the persistent project keystore."
           files: |
             FiveByFiveLifting-s26plus-debug.apk
             app/signing/signing-info.txt

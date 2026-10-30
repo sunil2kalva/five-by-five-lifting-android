@@ -75,6 +75,13 @@ class StrengthViewModel(
     init {
         viewModelScope.launch {
             repository.ensureDefaultExerciseStates()
+            repository.cloudSyncManager.googleAuthManager.getLastSignedInProfile()?.let { profile ->
+                repository.preferencesRepository.setGoogleSignedInProfile(
+                    email = profile.email,
+                    displayName = profile.displayName,
+                    userId = profile.userId
+                )
+            }
         }
     }
 
@@ -366,7 +373,55 @@ class StrengthViewModel(
     fun setGoogleAccountEmail(email: String) {
         viewModelScope.launch {
             repository.preferencesRepository.setGoogleAccountEmail(email)
-            _statusMessage.value = "Selected Google Account: $email"
+            _statusMessage.value = "Signed in as $email"
+        }
+    }
+
+    fun prepareGoogleSignInIntent(
+        includeIdToken: Boolean = true,
+        onIntentReady: (Intent) -> Unit
+    ) {
+        repository.cloudSyncManager.googleAuthManager.signOutAndBuildSignInIntent(
+            includeIdToken = includeIdToken,
+            onIntentReady = onIntentReady
+        )
+    }
+
+    fun handleGoogleSignInResult(
+        data: Intent?,
+        onSignedInEmail: (String) -> Unit = {},
+        onRetryWithoutIdToken: () -> Unit = {}
+    ) {
+        val result = repository.cloudSyncManager.googleAuthManager.parseSignInResult(data)
+        result.fold(
+            onSuccess = { profile ->
+                viewModelScope.launch {
+                    repository.preferencesRepository.setGoogleSignedInProfile(
+                        email = profile.email,
+                        displayName = profile.displayName,
+                        userId = profile.userId
+                    )
+                    val label = profile.displayName?.let { "$it (${profile.email})" } ?: profile.email
+                    _statusMessage.value = "Signed in with Google: $label"
+                    onSignedInEmail(profile.email)
+                }
+            },
+            onFailure = { err ->
+                if (repository.cloudSyncManager.googleAuthManager.isDeveloperError(err)) {
+                    onRetryWithoutIdToken()
+                } else {
+                    _statusMessage.value = "Google Sign-In canceled or failed: ${err.localizedMessage ?: "Try again"}"
+                }
+            }
+        )
+    }
+
+    fun signOutGoogleAccount() {
+        repository.cloudSyncManager.googleAuthManager.signOut {
+            viewModelScope.launch {
+                repository.preferencesRepository.clearGoogleSignedInProfile()
+                _statusMessage.value = "Signed out of Google Account"
+            }
         }
     }
 

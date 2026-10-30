@@ -21,6 +21,8 @@ data class UserPreferences(
     val barbellWeightLb: Double = 45.0,
     val nextWorkoutOverride: WorkoutType? = null,
     val googleAccountEmail: String? = null,
+    val googleDisplayName: String? = null,
+    val googleUserId: String? = null,
     val cloudSyncUriString: String? = null,
     val cloudBackupFileName: String? = null,
     val cloudBackupConfigured: Boolean = false,
@@ -28,13 +30,16 @@ data class UserPreferences(
     val lastCloudSyncEpochMillis: Long? = null,
     val soundAndVibrationEnabled: Boolean = true
 ) {
+    val isSignedInWithGoogle: Boolean
+        get() = !googleAccountEmail.isNullOrBlank()
+
     val isBackupFileConfigured: Boolean
         get() = cloudBackupConfigured ||
             !cloudSyncUriString.isNullOrBlank() ||
             lastCloudSyncEpochMillis != null
 
     val isBackupSetupComplete: Boolean
-        get() = !googleAccountEmail.isNullOrBlank() && isBackupFileConfigured
+        get() = isSignedInWithGoogle && isBackupFileConfigured
 
     val isSyncConfiguredAndWorking: Boolean
         get() = isBackupSetupComplete && autoSyncEnabled
@@ -51,6 +56,8 @@ class UserPreferencesRepository(private val context: Context) {
         val BARBELL_WEIGHT_LB = doublePreferencesKey("barbell_weight_lb")
         val NEXT_WORKOUT_OVERRIDE = stringPreferencesKey("next_workout_override")
         val GOOGLE_ACCOUNT_EMAIL = stringPreferencesKey("google_account_email")
+        val GOOGLE_DISPLAY_NAME = stringPreferencesKey("google_display_name")
+        val GOOGLE_USER_ID = stringPreferencesKey("google_user_id")
         val CLOUD_SYNC_URI = stringPreferencesKey("cloud_sync_uri")
         val CLOUD_BACKUP_FILE_NAME = stringPreferencesKey("cloud_backup_file_name")
         val CLOUD_BACKUP_CONFIGURED = booleanPreferencesKey("cloud_backup_configured")
@@ -72,6 +79,8 @@ class UserPreferencesRepository(private val context: Context) {
             barbellWeightLb = barLb,
             nextWorkoutOverride = overrideWorkout,
             googleAccountEmail = prefs[Keys.GOOGLE_ACCOUNT_EMAIL],
+            googleDisplayName = prefs[Keys.GOOGLE_DISPLAY_NAME],
+            googleUserId = prefs[Keys.GOOGLE_USER_ID],
             cloudSyncUriString = prefs[Keys.CLOUD_SYNC_URI],
             cloudBackupFileName = prefs[Keys.CLOUD_BACKUP_FILE_NAME],
             cloudBackupConfigured = prefs[Keys.CLOUD_BACKUP_CONFIGURED] ?: false,
@@ -111,6 +120,34 @@ class UserPreferencesRepository(private val context: Context) {
             } else {
                 prefs[Keys.GOOGLE_ACCOUNT_EMAIL] = email.trim()
             }
+        }
+    }
+
+    suspend fun setGoogleSignedInProfile(
+        email: String,
+        displayName: String?,
+        userId: String?
+    ) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.GOOGLE_ACCOUNT_EMAIL] = email.trim()
+            if (!displayName.isNullOrBlank()) {
+                prefs[Keys.GOOGLE_DISPLAY_NAME] = displayName.trim()
+            } else {
+                prefs.remove(Keys.GOOGLE_DISPLAY_NAME)
+            }
+            if (!userId.isNullOrBlank()) {
+                prefs[Keys.GOOGLE_USER_ID] = userId.trim()
+            } else {
+                prefs.remove(Keys.GOOGLE_USER_ID)
+            }
+        }
+    }
+
+    suspend fun clearGoogleSignedInProfile() {
+        context.dataStore.edit { prefs ->
+            prefs.remove(Keys.GOOGLE_ACCOUNT_EMAIL)
+            prefs.remove(Keys.GOOGLE_DISPLAY_NAME)
+            prefs.remove(Keys.GOOGLE_USER_ID)
         }
     }
 

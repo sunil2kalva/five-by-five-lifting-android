@@ -1,6 +1,5 @@
 package com.fivebyfivelifting.app.ui.screens
 
-import android.accounts.AccountManager
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -27,6 +26,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,7 +41,6 @@ import com.fivebyfivelifting.app.data.model.ExerciseType
 import com.fivebyfivelifting.app.data.model.WeightUnit
 import com.fivebyfivelifting.app.ui.StrengthUiState
 import com.fivebyfivelifting.app.ui.components.PlateCalculatorSheet
-import com.fivebyfivelifting.app.ui.theme.AccentBlue
 import com.fivebyfivelifting.app.ui.theme.AmberWarning
 import com.fivebyfivelifting.app.ui.theme.EmeraldSuccess
 import java.text.SimpleDateFormat
@@ -61,8 +60,9 @@ fun SettingsScreen(
     onSelectBarbellWeightDisplay: (Double) -> Unit,
     onUpdateExerciseWeight: (ExerciseType, Double) -> Unit,
     onToggleAutoSync: (Boolean) -> Unit,
-    onSelectGoogleAccountEmail: (String) -> Unit,
-    buildChooseGoogleAccountIntent: () -> Intent,
+    onPrepareGoogleSignInIntent: (Boolean, (Intent) -> Unit) -> Unit,
+    onHandleGoogleSignInResult: (Intent?, (String) -> Unit, () -> Unit) -> Unit,
+    onSignOutGoogleAccount: () -> Unit,
     buildOpenGoogleDriveFileIntent: (String?) -> Intent,
     onLaunchDirectSaveToGoogleDriveApp: (String?, (Intent) -> Unit) -> Unit,
     onRestoreFromGoogleDriveUri: (Uri) -> Unit,
@@ -85,33 +85,65 @@ fun SettingsScreen(
         }
     }
 
-    // Native Android Google Account Picker Launcher (lists all logged-in Google users on the phone)
-    val googleAccountPickerLauncher = rememberLauncherForActivityResult(
+    // Fallback Google Sign-In launcher without ID token if OAuth Client ID is Android-only
+    val fallbackGoogleSignInLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        val chosenEmail = if (result.resultCode == Activity.RESULT_OK) {
-            result.data?.getStringExtra(AccountManager.KEY_ACCOUNT_NAME)
-        } else {
-            null
-        }
-        if (!chosenEmail.isNullOrBlank()) {
-            onSelectGoogleAccountEmail(chosenEmail)
-        }
-        val effectiveEmail = chosenEmail ?: prefs.googleAccountEmail
-        when (pendingDriveAction) {
-            PendingDriveAction.CONFIGURE_BACKUP_IN_DRIVE -> {
-                pendingDriveAction = PendingDriveAction.NONE
-                if (!effectiveEmail.isNullOrBlank()) {
-                    onLaunchDirectSaveToGoogleDriveApp(effectiveEmail) { driveIntent ->
-                        context.startActivity(driveIntent)
+        onHandleGoogleSignInResult(
+            result.data,
+            { signedInEmail ->
+                when (pendingDriveAction) {
+                    PendingDriveAction.CONFIGURE_BACKUP_IN_DRIVE -> {
+                        pendingDriveAction = PendingDriveAction.NONE
+                        onLaunchDirectSaveToGoogleDriveApp(signedInEmail) { driveIntent ->
+                            context.startActivity(driveIntent)
+                        }
                     }
+                    PendingDriveAction.OPEN_RESTORE_FILE -> {
+                        pendingDriveAction = PendingDriveAction.NONE
+                        openDriveDocLauncher.launch(buildOpenGoogleDriveFileIntent(signedInEmail))
+                    }
+                    PendingDriveAction.NONE -> {}
+                }
+            },
+            {}
+        )
+    }
+
+    // Primary Native Google Sign-In Launcher (with OAuth Client ID)
+    val googleSignInLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        onHandleGoogleSignInResult(
+            result.data,
+            { signedInEmail ->
+                when (pendingDriveAction) {
+                    PendingDriveAction.CONFIGURE_BACKUP_IN_DRIVE -> {
+                        pendingDriveAction = PendingDriveAction.NONE
+                        onLaunchDirectSaveToGoogleDriveApp(signedInEmail) { driveIntent ->
+                            context.startActivity(driveIntent)
+                        }
+                    }
+                    PendingDriveAction.OPEN_RESTORE_FILE -> {
+                        pendingDriveAction = PendingDriveAction.NONE
+                        openDriveDocLauncher.launch(buildOpenGoogleDriveFileIntent(signedInEmail))
+                    }
+                    PendingDriveAction.NONE -> {}
+                }
+            },
+            {
+                // Automatic retry with Android default sign-in if ID token client type differs
+                onPrepareGoogleSignInIntent(false) { fallbackIntent ->
+                    fallbackGoogleSignInLauncher.launch(fallbackIntent)
                 }
             }
-            PendingDriveAction.OPEN_RESTORE_FILE -> {
-                pendingDriveAction = PendingDriveAction.NONE
-                openDriveDocLauncher.launch(buildOpenGoogleDriveFileIntent(effectiveEmail))
-            }
-            PendingDriveAction.NONE -> {}
+        )
+    }
+
+    fun startGoogleSignInFlow(afterSignInAction: PendingDriveAction = PendingDriveAction.NONE) {
+        pendingDriveAction = afterSignInAction
+        onPrepareGoogleSignInIntent(true) { signInIntent ->
+            googleSignInLauncher.launch(signInIntent)
         }
     }
 
@@ -134,12 +166,12 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Text(
-            text = "Settings & Cloud Sync",
+            text = "Settings & Google Sign-In",
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.ExtraBold
         )
 
-        // 1. Google Account & Google Drive Cloud Backup Card
+        // 1. Google Sign-In & Google Drive Backup Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),
@@ -157,7 +189,7 @@ fun SettingsScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "Google Drive Backup",
+                        text = "Google Sign-In & Drive Backup",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
@@ -181,9 +213,9 @@ fun SettingsScreen(
                 }
 
                 if (isBackupConfigured) {
-                    // STATE A: User AND Backup File are already configured
+                    // STATE A: Signed in with Google AND Backup File is configured
                     Text(
-                        text = "Your Google Account and backup file are configured. Workouts are backed up to your Google Drive.",
+                        text = "Signed in with Google and linked to your Google Drive backup file.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -201,7 +233,7 @@ fun SettingsScreen(
                                 .padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            // Row 1: Configured Google User + Change option
+                            // Row 1: Signed-in Google Profile + Switch/Sign Out
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -209,25 +241,41 @@ fun SettingsScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "Google Account",
+                                        text = "Signed-In Google Account",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    Text(
-                                        text = "✓ ${prefs.googleAccountEmail}",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = EmeraldSuccess
-                                    )
+                                    if (!prefs.googleDisplayName.isNullOrBlank()) {
+                                        Text(
+                                            text = "✓ ${prefs.googleDisplayName}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = EmeraldSuccess
+                                        )
+                                        Text(
+                                            text = prefs.googleAccountEmail ?: "",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "✓ ${prefs.googleAccountEmail}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = EmeraldSuccess
+                                        )
+                                    }
                                 }
 
-                                OutlinedButton(
-                                    onClick = {
-                                        pendingDriveAction = PendingDriveAction.NONE
-                                        googleAccountPickerLauncher.launch(buildChooseGoogleAccountIntent())
+                                Column(horizontalAlignment = Alignment.End) {
+                                    OutlinedButton(
+                                        onClick = { startGoogleSignInFlow(PendingDriveAction.NONE) }
+                                    ) {
+                                        Text("Change User")
                                     }
-                                ) {
-                                    Text("Change User")
+                                    TextButton(onClick = onSignOutGoogleAccount) {
+                                        Text("Sign Out", style = MaterialTheme.typography.labelSmall)
+                                    }
                                 }
                             }
 
@@ -291,14 +339,13 @@ fun SettingsScreen(
                         )
                     }
                 } else {
-                    // STATE B: Not yet configured (either Google User or Backup File is missing)
+                    // STATE B: Not yet configured (either Google Sign-In or Backup File is missing)
                     Text(
-                        text = "Select your Google Account and choose a folder in Google Drive to store your workout backup file.",
+                        text = "Sign in with your Google Account and choose a folder in Google Drive to store your workout backup file.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
 
-                    // Step 1: Google User Selection
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
@@ -312,6 +359,7 @@ fun SettingsScreen(
                                 .padding(12.dp),
                             verticalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
+                            // Step 1: Google Sign-In Status
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -319,30 +367,34 @@ fun SettingsScreen(
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text(
-                                        text = "Step 1 • Google Account on Device",
+                                        text = "Step 1 • Google Account Login",
                                         style = MaterialTheme.typography.labelSmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
-                                    Text(
-                                        text = prefs.googleAccountEmail?.let { "✓ $it" }
-                                            ?: "Not selected yet",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (prefs.googleAccountEmail != null) {
-                                            EmeraldSuccess
-                                        } else {
-                                            MaterialTheme.colorScheme.onSurface
-                                        }
-                                    )
+                                    if (prefs.isSignedInWithGoogle) {
+                                        val displayLabel = prefs.googleDisplayName?.let {
+                                            "✓ $it (${prefs.googleAccountEmail})"
+                                        } ?: "✓ ${prefs.googleAccountEmail}"
+                                        Text(
+                                            text = displayLabel,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = EmeraldSuccess
+                                        )
+                                    } else {
+                                        Text(
+                                            text = "Not signed in",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                    }
                                 }
 
                                 OutlinedButton(
-                                    onClick = {
-                                        pendingDriveAction = PendingDriveAction.NONE
-                                        googleAccountPickerLauncher.launch(buildChooseGoogleAccountIntent())
-                                    }
+                                    onClick = { startGoogleSignInFlow(PendingDriveAction.NONE) }
                                 ) {
-                                    Text(if (prefs.googleAccountEmail == null) "Pick User" else "Change User")
+                                    Text(if (prefs.isSignedInWithGoogle) "Change User" else "Sign in with Google")
                                 }
                             }
 
@@ -350,7 +402,7 @@ fun SettingsScreen(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
                             )
 
-                            // Step 2: Backup File Selection
+                            // Step 2: Backup File Status
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -383,9 +435,8 @@ fun SettingsScreen(
 
                     Button(
                         onClick = {
-                            if (prefs.googleAccountEmail.isNullOrBlank()) {
-                                pendingDriveAction = PendingDriveAction.CONFIGURE_BACKUP_IN_DRIVE
-                                googleAccountPickerLauncher.launch(buildChooseGoogleAccountIntent())
+                            if (!prefs.isSignedInWithGoogle) {
+                                startGoogleSignInFlow(PendingDriveAction.CONFIGURE_BACKUP_IN_DRIVE)
                             } else {
                                 onLaunchDirectSaveToGoogleDriveApp(prefs.googleAccountEmail) { driveIntent ->
                                     context.startActivity(driveIntent)
@@ -395,8 +446,8 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            if (prefs.googleAccountEmail.isNullOrBlank()) {
-                                "Pick Google User & Select Backup File"
+                            if (!prefs.isSignedInWithGoogle) {
+                                "Sign in with Google & Select Backup File"
                             } else {
                                 "Select Backup Folder in Google Drive"
                             }
@@ -416,9 +467,8 @@ fun SettingsScreen(
                     )
                     OutlinedButton(
                         onClick = {
-                            if (prefs.googleAccountEmail.isNullOrBlank()) {
-                                pendingDriveAction = PendingDriveAction.OPEN_RESTORE_FILE
-                                googleAccountPickerLauncher.launch(buildChooseGoogleAccountIntent())
+                            if (!prefs.isSignedInWithGoogle) {
+                                startGoogleSignInFlow(PendingDriveAction.OPEN_RESTORE_FILE)
                             } else {
                                 openDriveDocLauncher.launch(
                                     buildOpenGoogleDriveFileIntent(prefs.googleAccountEmail)

@@ -1,0 +1,26 @@
+Alias name: fivebyfive
+Creation date: Oct 29, 2026
+Entry type: PrivateKeyEntry
+Certificate chain length: 1
+Certificate[1]:
+Owner: CN=Five By Five Lifting, OU=Mobile, O=FiveByFiveLifting, L=SanJose, ST=CA, C=US
+Issuer: CN=Five By Five Lifting, OU=Mobile, O=FiveByFiveLifting, L=SanJose, ST=CA, C=US
+Serial number: 2404f39cfb314282
+Valid from: Thu Oct 29 20:37:57 UTC 2026 until: Mon Mar 16 20:37:57 UTC 2054
+Certificate fingerprints:
+	 SHA1: B6:CF:F6:5F:A3:A6:CA:2B:2E:F1:DF:46:3D:14:0B:45:47:DD:24:A3
+	 SHA256: 15:B0:D3:61:58:63:8D:3C:83:41:9C:B4:5A:F6:7B:6E:6C:2F:F4:F2:09:19:02:80:5E:51:9F:50:95:5D:D1:0C
+Signature algorithm name: SHA256withRSA
+Subject Public Key Algorithm: 2048-bit RSA key
+Version: 3
+
+Extensions: 
+
+#1: ObjectId: 2.5.29.14 Criticality=false
+SubjectKeyIdentifier [
+KeyIdentifier [
+0000: 18 7C B4 21 87 E8 58 E0   66 0F 16 31 15 1A 49 71  ...!..X.f..1..Iq
+0010: 49 B3 7B 09                                        I...
+]
+]
+
