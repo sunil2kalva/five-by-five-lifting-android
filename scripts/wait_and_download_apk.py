@@ -56,9 +56,16 @@ def api_request(method: str, path: str, payload=None):
     }
     if data is not None:
         headers["Content-Type"] = "application/json"
-    req = urllib.request.Request(url, data=data, headers=headers, method=method)
-    with urllib.request.urlopen(req, context=ctx) as resp:
-        return json.loads(resp.read().decode("utf-8"))
+    last_err = None
+    for attempt in range(4):
+        try:
+            req = urllib.request.Request(url, data=data, headers=headers, method=method)
+            with urllib.request.urlopen(req, context=ctx, timeout=25) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except Exception as err:
+            last_err = err
+            time.sleep(2 * (attempt + 1))
+    raise last_err
 
 
 def download_bytes(url: str) -> bytes:

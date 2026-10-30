@@ -7,6 +7,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,10 +42,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fivebyfivelifting.app.data.model.ExerciseType
 import com.fivebyfivelifting.app.data.model.WeightUnit
+import com.fivebyfivelifting.app.domain.HealthConnectManager
 import com.fivebyfivelifting.app.ui.StrengthUiState
 import com.fivebyfivelifting.app.ui.components.PlateCalculatorSheet
 import com.fivebyfivelifting.app.ui.theme.AmberWarning
 import com.fivebyfivelifting.app.ui.theme.EmeraldSuccess
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -53,11 +58,14 @@ private enum class PendingDriveAction {
     OPEN_RESTORE_FILE
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     uiState: StrengthUiState,
     onSelectWeightUnit: (WeightUnit) -> Unit,
     onSelectBarbellWeightDisplay: (Double) -> Unit,
+    onSelectRestTimerSeconds: (Int) -> Unit,
+    onToggleHealthConnectSync: (Boolean, String?) -> Unit,
     onUpdateExerciseWeight: (ExerciseType, Double) -> Unit,
     onToggleAutoSync: (Boolean) -> Unit,
     onPrepareGoogleSignInIntent: (Boolean, (Intent) -> Unit) -> Unit,
@@ -69,10 +77,31 @@ fun SettingsScreen(
     onExportCsvToUri: (Uri) -> Unit
 ) {
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val prefs = uiState.preferences
     val unit = prefs.weightUnit
     var editingExercise by remember { mutableStateOf<ExerciseType?>(null) }
     var pendingDriveAction by remember { mutableStateOf(PendingDriveAction.NONE) }
+
+    val healthConnectPermissionLauncher = rememberLauncherForActivityResult(
+        contract = HealthConnectManager.createPermissionRequestContract()
+    ) { grantedPermissions ->
+        if (grantedPermissions.containsAll(HealthConnectManager.requiredPermissions)) {
+            onToggleHealthConnectSync(true, "Health Connect workout sync enabled!")
+        } else {
+            // Even if Android 14+ returned partial or empty set on some OEM flows, check actual granted state
+            coroutineScope.launch {
+                if (HealthConnectManager.hasAllPermissions(context)) {
+                    onToggleHealthConnectSync(true, "Health Connect workout sync enabled!")
+                } else {
+                    onToggleHealthConnectSync(
+                        true,
+                        "Health Connect sync enabled — grant Exercise permission in Health Connect if prompted"
+                    )
+                }
+            }
+        }
+    }
 
     // Launcher for opening/restoring an existing backup file from Google Drive
     val openDriveDocLauncher = rememberLauncherForActivityResult(
@@ -483,7 +512,211 @@ fun SettingsScreen(
             }
         }
 
-        // 2. Weight Unit & Barbell Configuration Card
+        // 2. Rest Timer Between Sets Card (Default = 3:00 / 180 seconds)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                val mins = prefs.restTimerSeconds / 60
+                val secs = prefs.restTimerSeconds % 60
+                val formattedCurrent = String.format("%d:%02d (%ds)", mins, secs, prefs.restTimerSeconds)
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Rest Timer Between Sets",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                    ) {
+                        Text(
+                            text = formattedCurrent,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Default countdown timer started automatically after logging a work set (defaults to 3:00 / 180s):",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                val timerPresets = listOf(
+                    60 to "1:00",
+                    90 to "1:30",
+                    120 to "2:00",
+                    150 to "2:30",
+                    180 to "3:00 (Default)",
+                    300 to "5:00"
+                )
+
+                FlowRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    timerPresets.forEach { (secondsValue, label) ->
+                        FilterChip(
+                            selected = prefs.restTimerSeconds == secondsValue,
+                            onClick = { onSelectRestTimerSeconds(secondsValue) },
+                            label = { Text(label) }
+                        )
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = {
+                            onSelectRestTimerSeconds((prefs.restTimerSeconds - 15).coerceAtLeast(30))
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("-15s")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            onSelectRestTimerSeconds((prefs.restTimerSeconds + 15).coerceAtMost(600))
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("+15s")
+                    }
+                }
+            }
+        }
+
+        // 3. Android Health Connect Sync Card
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Android Health Connect",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = if (prefs.healthConnectSyncEnabled) {
+                            EmeraldSuccess.copy(alpha = 0.16f)
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        }
+                    ) {
+                        Text(
+                            text = if (prefs.healthConnectSyncEnabled) "● Sync Enabled" else "Disabled",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (prefs.healthConnectSyncEnabled) {
+                                EmeraldSuccess
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+
+                Text(
+                    text = "Automatically sync completed strength workouts (exercise session, duration, sets, and total volume) to the Android Health Connect ecosystem.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Sync workouts to Health Connect",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Switch(
+                        checked = prefs.healthConnectSyncEnabled,
+                        onCheckedChange = { enabled ->
+                            if (!enabled) {
+                                onToggleHealthConnectSync(false, "Health Connect workout sync disabled")
+                            } else {
+                                if (!HealthConnectManager.isAvailable(context)) {
+                                    onToggleHealthConnectSync(
+                                        false,
+                                        "Health Connect is not available or needs to be installed on this device"
+                                    )
+                                } else {
+                                    coroutineScope.launch {
+                                        if (HealthConnectManager.hasAllPermissions(context)) {
+                                            onToggleHealthConnectSync(true, "Health Connect workout sync enabled!")
+                                        } else {
+                                            runCatching {
+                                                healthConnectPermissionLauncher.launch(
+                                                    HealthConnectManager.requiredPermissions
+                                                )
+                                            }.onFailure {
+                                                onToggleHealthConnectSync(
+                                                    true,
+                                                    "Health Connect sync enabled — check permissions in Health Connect settings"
+                                                )
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    )
+                }
+
+                if (prefs.healthConnectSyncEnabled) {
+                    OutlinedButton(
+                        onClick = {
+                            runCatching {
+                                context.startActivity(HealthConnectManager.buildHealthConnectSettingsIntent())
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Open Health Connect Permissions & Settings")
+                    }
+                }
+            }
+        }
+
+        // 4. Weight Unit & Barbell Configuration Card
         Card(
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(16.dp),

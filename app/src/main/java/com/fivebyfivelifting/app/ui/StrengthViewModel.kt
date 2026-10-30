@@ -214,18 +214,13 @@ class StrengthViewModel(
             if (reps == null) {
                 stopRestTimer()
             } else {
-                val seconds = ProgressionEngine.recommendedRestSeconds(
-                    completedReps = reps,
-                    targetReps = updatedSet.targetReps,
-                    feltHeavy = false
-                )
-                val reason = if (reps >= updatedSet.targetReps) {
-                    "Completed ${updatedSet.targetReps} reps — Rest 1:30 (or 3:00 if heavy)"
-                } else {
-                    "Missed rep ($reps/${updatedSet.targetReps}) — Rest 5:00 to recover"
-                }
+                val configuredSeconds = uiState.value.preferences.restTimerSeconds.coerceIn(30, 600)
+                val mins = configuredSeconds / 60
+                val secs = configuredSeconds % 60
+                val formattedDuration = String.format("%d:%02d", mins, secs)
+                val reason = "Set logged ($reps/${updatedSet.targetReps}) — Resting $formattedDuration"
                 startRestTimer(
-                    durationSeconds = seconds,
+                    durationSeconds = configuredSeconds,
                     exerciseName = uiState.value.exerciseDisplayName(updatedSet.exercise),
                     completedReps = reps,
                     reasonLabel = reason,
@@ -295,8 +290,8 @@ class StrengthViewModel(
     }
 
     fun finishActiveWorkout(
-        bodyweightDisplayInput: String,
-        notes: String,
+        bodyweightDisplayInput: String = "",
+        notes: String = "",
         onCompleted: () -> Unit
     ) {
         stopRestTimer()
@@ -367,6 +362,27 @@ class StrengthViewModel(
     fun setAutoSyncEnabled(enabled: Boolean) {
         viewModelScope.launch {
             repository.preferencesRepository.setAutoSyncEnabled(enabled)
+        }
+    }
+
+    fun setRestTimerSeconds(seconds: Int) {
+        viewModelScope.launch {
+            val clamped = seconds.coerceIn(30, 600)
+            repository.preferencesRepository.setRestTimerSeconds(clamped)
+            val mins = clamped / 60
+            val secs = clamped % 60
+            _statusMessage.value = String.format("Default rest timer set to %d:%02d", mins, secs)
+        }
+    }
+
+    fun setHealthConnectSyncEnabled(enabled: Boolean, customMessage: String? = null) {
+        viewModelScope.launch {
+            repository.preferencesRepository.setHealthConnectSyncEnabled(enabled)
+            _statusMessage.value = customMessage ?: if (enabled) {
+                "Health Connect workout sync enabled"
+            } else {
+                "Health Connect workout sync disabled"
+            }
         }
     }
 

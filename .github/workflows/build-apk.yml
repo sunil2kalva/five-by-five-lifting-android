@@ -61,12 +61,12 @@ jobs:
             app/signing/fivebyfive.keystore
             app/signing/signing-info.txt
 
-      - name: Publish APK to GitHub Releases (v1.5.0)
+      - name: Publish APK to GitHub Releases (v1.6.0)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.5.0
-          name: "Five By Five Lifting Android v1.5.0 (Native Sign in with Google)"
-          body: "Signed debug APK for Samsung S26+. Adds native Google Sign-In via Google Play Services Auth configured with GCP OAuth 2.0 Client ID and signed with the persistent project keystore."
+          tag_name: v1.6.0
+          name: "Five By Five Lifting Android v1.6.0 (Health Connect Sync, 3m Rest Timer & Compact Workout UI)"
+          body: "Signed APK for Samsung Galaxy S26+. Features configurable rest timer (default 3:00 / 180s), multi-second timer completion chime + vibration, Android Health Connect workout sync toggle, inline HUD header rest timer pill, and compact single-screen 3-exercise workout layout."
           files: |
             FiveByFiveLifting-s26plus-debug.apk
             app/signing/signing-info.txt

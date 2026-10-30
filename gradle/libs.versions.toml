@@ -12,6 +12,7 @@ datastore = "1.1.1"
 kotlinxSerializationJson = "1.7.3"
 coroutines = "1.9.0"
 playServicesAuth = "21.2.0"
+healthConnect = "1.1.0-alpha07"
 junit = "4.13.2"
 
 [libraries]
@@ -38,6 +39,7 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutines" }
 google-play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
+androidx-health-connect-client = { group = "androidx.health.connect", name = "connect-client", version.ref = "healthConnect" }
 
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 

@@ -1,5 +1,10 @@
 package com.fivebyfivelifting.app.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -13,19 +18,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.FilterChip
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -38,8 +44,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.fivebyfivelifting.app.data.local.WorkoutSetEntity
@@ -48,9 +55,9 @@ import com.fivebyfivelifting.app.data.model.WeightUnit
 import com.fivebyfivelifting.app.data.model.WorkoutType
 import com.fivebyfivelifting.app.domain.PlateCalculator
 import com.fivebyfivelifting.app.domain.ProgressionAction
+import com.fivebyfivelifting.app.ui.RestTimerState
 import com.fivebyfivelifting.app.ui.StrengthUiState
 import com.fivebyfivelifting.app.ui.components.PlateCalculatorSheet
-import com.fivebyfivelifting.app.ui.components.RestTimerBanner
 import com.fivebyfivelifting.app.ui.components.WorkoutBuilderSheet
 import com.fivebyfivelifting.app.ui.components.WorkoutPullDownSelector
 import com.fivebyfivelifting.app.ui.theme.AmberWarning
@@ -65,10 +72,8 @@ fun WorkoutScreen(
     onStartWorkout: () -> Unit,
     onTapSetBubble: (Long) -> Unit,
     onUpdateExerciseWeight: (ExerciseType, Double) -> Unit,
-    onAddThirtySecondsRest: () -> Unit,
-    onSwitchRestToThreeMinutes: () -> Unit,
     onSkipRestTimer: () -> Unit,
-    onFinishWorkout: (String, String) -> Unit,
+    onFinishWorkout: () -> Unit,
     onDiscardWorkout: () -> Unit,
     onDismissSummary: () -> Unit
 ) {
@@ -79,8 +84,6 @@ fun WorkoutScreen(
     val showWarmupMap = remember { mutableStateMapOf<ExerciseType, Boolean>() }
     var selectedPlateExercise by remember { mutableStateOf<ExerciseType?>(null) }
     var editingWorkoutType by remember { mutableStateOf<WorkoutType?>(null) }
-    var bodyweightInput by remember { mutableStateOf("") }
-    var notesInput by remember { mutableStateOf("") }
 
     // Post-workout progression summary dialog
     uiState.completionSummary?.let { summary ->
@@ -125,6 +128,19 @@ fun WorkoutScreen(
                         style = MaterialTheme.typography.labelMedium,
                         color = EmeraldSuccess
                     )
+                    if (summary.healthConnectSynced) {
+                        Text(
+                            text = "✓ Synced workout to Android Health Connect",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = EmeraldSuccess
+                        )
+                    } else if (!summary.healthConnectError.isNullOrBlank()) {
+                        Text(
+                            text = "Health Connect: ${summary.healthConnectError}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = AmberWarning
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -202,49 +218,92 @@ fun WorkoutScreen(
     val exercisesInWorkout = active.distinctWorkingExercises()
         .ifEmpty { activeTemplate.exerciseList() }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 12.dp, vertical = 6.dp)
+    ) {
+        // 1. Compact Top Header Row + Innovative Inline HUD Rest Timer Pill
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                modifier = Modifier.weight(1f, fill = false)
+            ) {
+                WorkoutPullDownSelector(
+                    currentWorkoutType = workoutType,
+                    uiState = uiState,
+                    onSelectWorkoutType = onSelectWorkoutType,
+                    onOpenWorkoutBuilder = { editingWorkoutType = it }
+                )
+                TextButton(
+                    onClick = { editingWorkoutType = workoutType }
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "ACTIVE WORKOUT (PULL DOWN TO CHANGE)",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.Bold
-                        )
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            WorkoutPullDownSelector(
-                                currentWorkoutType = workoutType,
-                                uiState = uiState,
-                                onSelectWorkoutType = onSelectWorkoutType,
-                                onOpenWorkoutBuilder = { editingWorkoutType = it }
-                            )
-                            TextButton(onClick = { editingWorkoutType = workoutType }) {
-                                Text("+ Edit Lifts")
-                            }
-                        }
-                    }
-                    TextButton(onClick = onDiscardWorkout) {
-                        Text("Discard", color = MaterialTheme.colorScheme.error)
-                    }
+                    Text(
+                        text = "Edit",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
 
+            // Innovative Zero-Clutter HUD Rest Timer Pill integrated right into the header bar
+            AnimatedVisibility(
+                visible = uiState.restTimer.isRunning,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically()
+            ) {
+                InlineHeaderRestTimerPill(
+                    timerState = uiState.restTimer,
+                    onDismiss = onSkipRestTimer
+                )
+            }
+
+            TextButton(onClick = onDiscardWorkout) {
+                Text(
+                    text = "Discard",
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        // Subtle 3dp full-width progress bar directly beneath the header when timer is active
+        AnimatedVisibility(
+            visible = uiState.restTimer.isRunning,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            val progress = if (uiState.restTimer.totalSeconds > 0) {
+                (uiState.restTimer.remainingSeconds.toFloat() / uiState.restTimer.totalSeconds.toFloat())
+                    .coerceIn(0f, 1f)
+            } else {
+                0f
+            }
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 6.dp)
+                    .height(3.dp)
+                    .clip(RoundedCornerShape(2.dp)),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        }
+
+        // 2. Compact Exercise Cards List (fits 3 exercises on one screen without scrolling)
+        LazyColumn(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             items(exercisesInWorkout) { exercise ->
                 val displayName = uiState.exerciseDisplayName(exercise)
                 val workSets = active.workingSetsFor(exercise)
@@ -265,7 +324,7 @@ fun WorkoutScreen(
 
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = MaterialTheme.colorScheme.surface
                     )
@@ -273,59 +332,79 @@ fun WorkoutScreen(
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp)
+                            .padding(horizontal = 12.dp, vertical = 10.dp)
                     ) {
+                        // Compact Exercise Header: Name + Working Weight + Inline Warm-up Pill
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = displayName,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Text(
+                                        text = displayName,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    Text(
+                                        text = "${workSets.size}×$targetReps ${unit.format(workWeightLb)}",
+                                        fontSize = 14.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.clickable {
+                                            selectedPlateExercise = exercise
+                                        }
+                                    )
+                                }
                                 Text(
                                     text = "Plates: ${loadout.summaryText()} (Tap to adjust)",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.primary,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
                                     modifier = Modifier.clickable {
                                         selectedPlateExercise = exercise
                                     }
                                 )
                             }
 
-                            Text(
-                                text = "${workSets.size}×$targetReps ${unit.format(workWeightLb)}",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.ExtraBold,
-                                modifier = Modifier.clickable {
-                                    selectedPlateExercise = exercise
+                            if (warmupSets.isNotEmpty()) {
+                                Surface(
+                                    shape = RoundedCornerShape(10.dp),
+                                    color = if (showingWarmups) {
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                                    } else {
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                    },
+                                    modifier = Modifier.clickable {
+                                        showWarmupMap[exercise] = !showingWarmups
+                                    }
+                                ) {
+                                    Text(
+                                        text = if (showingWarmups) "← Work Sets" else "Warm-up (${warmupSets.size})",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = if (showingWarmups) {
+                                            MaterialTheme.colorScheme.primary
+                                        } else {
+                                            MaterialTheme.colorScheme.onSurfaceVariant
+                                        },
+                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                    )
                                 }
-                            )
-                        }
-
-                        if (warmupSets.isNotEmpty()) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                FilterChip(
-                                    selected = !showingWarmups,
-                                    onClick = { showWarmupMap[exercise] = false },
-                                    label = { Text("Work Sets (${workSets.size}×$targetReps)") }
-                                )
-                                FilterChip(
-                                    selected = showingWarmups,
-                                    onClick = { showWarmupMap[exercise] = true },
-                                    label = { Text("Warm-up (${warmupSets.size} sets)") }
-                                )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
 
                         if (showingWarmups && warmupSets.isNotEmpty()) {
-                            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 warmupSets.forEach { warmupSet ->
                                     val wuPlates = PlateCalculator.calculatePlates(
                                         targetWeightLb = warmupSet.targetWeightLb,
@@ -340,18 +419,17 @@ fun WorkoutScreen(
                                         Column {
                                             Text(
                                                 text = "Warm-up #${warmupSet.setNumber}: 1×${warmupSet.targetReps} @ ${unit.format(warmupSet.targetWeightLb)}",
-                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontSize = 13.sp,
                                                 fontWeight = FontWeight.SemiBold
                                             )
                                             Text(
                                                 text = wuPlates.summaryText(),
-                                                style = MaterialTheme.typography.bodySmall,
+                                                fontSize = 11.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
                                         SetBubbleButton(
                                             set = warmupSet,
-                                            unit = unit,
                                             onTap = { onTapSetBubble(warmupSet.id) }
                                         )
                                     }
@@ -369,13 +447,12 @@ fun WorkoutScreen(
                                     ) {
                                         SetBubbleButton(
                                             set = workSet,
-                                            unit = unit,
                                             onTap = { onTapSetBubble(workSet.id) }
                                         )
-                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Spacer(modifier = Modifier.height(2.dp))
                                         Text(
-                                            text = "Set ${workSet.setNumber}",
-                                            style = MaterialTheme.typography.labelSmall,
+                                            text = "S${workSet.setNumber}",
+                                            fontSize = 10.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
@@ -385,70 +462,24 @@ fun WorkoutScreen(
                     }
                 }
             }
-
-            // Optional Bodyweight & Notes card
-            item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Text(
-                            text = "Bodyweight & Session Notes",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold
-                        )
-                        OutlinedTextField(
-                            value = bodyweightInput,
-                            onValueChange = { bodyweightInput = it },
-                            label = { Text("Today's Bodyweight (${unit.label}) — optional") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        OutlinedTextField(
-                            value = notesInput,
-                            onValueChange = { notesInput = it },
-                            label = { Text("Workout notes (optional)") },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    }
-                }
-            }
-
-            item {
-                Button(
-                    onClick = { onFinishWorkout(bodyweightInput, notesInput) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(54.dp),
-                    shape = RoundedCornerShape(14.dp)
-                ) {
-                    Text(
-                        text = "Finish ${activeTemplate.customTitle} & Save Progression",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                Spacer(modifier = Modifier.height(16.dp))
-            }
         }
 
-        // Docked Smart Rest Timer Banner
-        RestTimerBanner(
-            timerState = uiState.restTimer,
-            onAddThirtySeconds = onAddThirtySecondsRest,
-            onSwitchToThreeMinutes = onSwitchRestToThreeMinutes,
-            onSkip = onSkipRestTimer
-        )
+        Spacer(modifier = Modifier.height(6.dp))
+
+        // 3. Docked Bottom Finish Button ("Finish Workout B" pattern)
+        Button(
+            onClick = onFinishWorkout,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(46.dp),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Text(
+                text = "Finish ${activeTemplate.customTitle}",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 
     selectedPlateExercise?.let { exercise ->
@@ -468,10 +499,70 @@ fun WorkoutScreen(
     }
 }
 
+/**
+ * Innovative, ultra-compact HUD Rest Timer Pill displayed inline in the Workout top bar.
+ * Shows an animated circular countdown ring + MM:SS timer + tap-to-dismiss (×) with zero preset buttons.
+ */
+@Composable
+private fun InlineHeaderRestTimerPill(
+    timerState: RestTimerState,
+    onDismiss: () -> Unit
+) {
+    val mins = timerState.remainingSeconds / 60
+    val secs = timerState.remainingSeconds % 60
+    val formatted = String.format("%02d:%02d", mins, secs)
+    val progress = if (timerState.totalSeconds > 0) {
+        (timerState.remainingSeconds.toFloat() / timerState.totalSeconds.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
+        modifier = Modifier
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f),
+                shape = RoundedCornerShape(50)
+            )
+            .clickable(onClick = onDismiss)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                CircularProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier.size(16.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                    strokeWidth = 2.2.dp,
+                    strokeCap = StrokeCap.Round
+                )
+            }
+            Text(
+                text = formatted,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Spacer(modifier = Modifier.width(2.dp))
+            Text(
+                text = "✕",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
 @Composable
 private fun SetBubbleButton(
     set: WorkoutSetEntity,
-    unit: WeightUnit,
     onTap: () -> Unit
 ) {
     val reps = set.completedReps
@@ -492,7 +583,7 @@ private fun SetBubbleButton(
 
     Box(
         modifier = Modifier
-            .size(56.dp)
+            .size(44.dp)
             .clip(CircleShape)
             .background(bgColor)
             .border(width = 2.dp, color = borderColor, shape = CircleShape)
@@ -502,7 +593,7 @@ private fun SetBubbleButton(
         Text(
             text = reps?.toString() ?: set.targetReps.toString(),
             color = textColor,
-            fontSize = 20.sp,
+            fontSize = 16.sp,
             fontWeight = FontWeight.ExtraBold
         )
     }

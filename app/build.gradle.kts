@@ -14,8 +14,8 @@ android {
         applicationId = "com.fivebyfivelifting.app"
         minSdk = 26
         targetSdk = 34
-        versionCode = 6
-        versionName = "1.5.0"
+        versionCode = 7
+        versionName = "1.6.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -92,6 +92,7 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.google.play.services.auth)
+    implementation(libs.androidx.health.connect.client)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)

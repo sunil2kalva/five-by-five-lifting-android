@@ -16,6 +16,7 @@ import com.fivebyfivelifting.app.domain.AppBackupSnapshot
 import com.fivebyfivelifting.app.domain.BackupExportManager
 import com.fivebyfivelifting.app.domain.CloudSyncManager
 import com.fivebyfivelifting.app.domain.ExerciseProgressionResult
+import com.fivebyfivelifting.app.domain.HealthConnectManager
 import com.fivebyfivelifting.app.domain.ProgressionEngine
 import com.fivebyfivelifting.app.domain.WarmupCalculator
 import kotlinx.coroutines.flow.Flow
@@ -27,7 +28,9 @@ data class WorkoutCompletionSummary(
     val progressionResults: List<ExerciseProgressionResult>,
     val totalVolumeLb: Double,
     val cloudSynced: Boolean,
-    val cloudSyncError: String? = null
+    val cloudSyncError: String? = null,
+    val healthConnectSynced: Boolean = false,
+    val healthConnectError: String? = null
 )
 
 class WorkoutRepository(
@@ -322,13 +325,44 @@ class WorkoutRepository(
             }
         }
 
+        val workoutTitle = template?.customTitle ?: active.session.workoutType.title
+        val totalVolumeLb = active.totalVolumeLb()
+        var healthConnectSynced = false
+        var healthConnectError: String? = null
+
+        if (prefs.healthConnectSyncEnabled) {
+            val unit = prefs.weightUnit
+            val exerciseSummaryLines = exercisesInSession.map { ex ->
+                val exName = statesMap[ex]?.effectiveName() ?: ex.displayName
+                val wSets = active.workingSetsFor(ex)
+                val weightStr = wSets.firstOrNull()?.let { unit.format(it.targetWeightLb) } ?: ""
+                val repsStr = wSets.joinToString("/") { (it.completedReps ?: 0).toString() }
+                "$exName: $weightStr ($repsStr)"
+            }
+            val hcNotes = buildString {
+                append(exerciseSummaryLines.joinToString(" • "))
+                append(" | Volume: ${unit.format(totalVolumeLb)}")
+            }
+            val hcResult = HealthConnectManager.writeCompletedWorkoutSession(
+                context = cloudSyncManager.appContext,
+                workoutTitle = workoutTitle,
+                startEpochMillis = active.session.startedAtEpochMillis,
+                endEpochMillis = now,
+                summaryNotes = hcNotes
+            )
+            healthConnectSynced = hcResult.isSuccess
+            healthConnectError = hcResult.exceptionOrNull()?.localizedMessage
+        }
+
         return WorkoutCompletionSummary(
             workoutType = active.session.workoutType,
-            workoutTitle = template?.customTitle ?: active.session.workoutType.title,
+            workoutTitle = workoutTitle,
             progressionResults = results,
-            totalVolumeLb = active.totalVolumeLb(),
+            totalVolumeLb = totalVolumeLb,
             cloudSynced = cloudSynced,
-            cloudSyncError = cloudError
+            cloudSyncError = cloudError,
+            healthConnectSynced = healthConnectSynced,
+            healthConnectError = healthConnectError
         )
     }
 

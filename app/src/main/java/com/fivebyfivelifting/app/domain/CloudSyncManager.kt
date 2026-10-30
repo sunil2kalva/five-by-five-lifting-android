@@ -21,6 +21,9 @@ import java.io.File
  */
 class CloudSyncManager(private val context: Context) {
 
+    val appContext: Context
+        get() = context
+
     val googleAuthManager: GoogleAuthManager = GoogleAuthManager(context)
 
     companion object {

@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.doublePreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -28,7 +29,9 @@ data class UserPreferences(
     val cloudBackupConfigured: Boolean = false,
     val autoSyncEnabled: Boolean = true,
     val lastCloudSyncEpochMillis: Long? = null,
-    val soundAndVibrationEnabled: Boolean = true
+    val soundAndVibrationEnabled: Boolean = true,
+    val restTimerSeconds: Int = 180,
+    val healthConnectSyncEnabled: Boolean = false
 ) {
     val isSignedInWithGoogle: Boolean
         get() = !googleAccountEmail.isNullOrBlank()
@@ -64,6 +67,8 @@ class UserPreferencesRepository(private val context: Context) {
         val AUTO_SYNC_ENABLED = booleanPreferencesKey("auto_sync_enabled")
         val LAST_CLOUD_SYNC_MS = longPreferencesKey("last_cloud_sync_ms")
         val SOUND_VIBRATION = booleanPreferencesKey("sound_vibration_enabled")
+        val REST_TIMER_SECONDS = intPreferencesKey("rest_timer_seconds")
+        val HEALTH_CONNECT_SYNC_ENABLED = booleanPreferencesKey("health_connect_sync_enabled")
     }
 
     val preferencesFlow: Flow<UserPreferences> = context.dataStore.data.map { prefs ->
@@ -86,7 +91,9 @@ class UserPreferencesRepository(private val context: Context) {
             cloudBackupConfigured = prefs[Keys.CLOUD_BACKUP_CONFIGURED] ?: false,
             autoSyncEnabled = prefs[Keys.AUTO_SYNC_ENABLED] ?: true,
             lastCloudSyncEpochMillis = prefs[Keys.LAST_CLOUD_SYNC_MS],
-            soundAndVibrationEnabled = prefs[Keys.SOUND_VIBRATION] ?: true
+            soundAndVibrationEnabled = prefs[Keys.SOUND_VIBRATION] ?: true,
+            restTimerSeconds = (prefs[Keys.REST_TIMER_SECONDS] ?: 180).coerceIn(30, 600),
+            healthConnectSyncEnabled = prefs[Keys.HEALTH_CONNECT_SYNC_ENABLED] ?: false
         )
     }
 
@@ -191,6 +198,18 @@ class UserPreferencesRepository(private val context: Context) {
     suspend fun setSoundAndVibrationEnabled(enabled: Boolean) {
         context.dataStore.edit { prefs ->
             prefs[Keys.SOUND_VIBRATION] = enabled
+        }
+    }
+
+    suspend fun setRestTimerSeconds(seconds: Int) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.REST_TIMER_SECONDS] = seconds.coerceIn(30, 600)
+        }
+    }
+
+    suspend fun setHealthConnectSyncEnabled(enabled: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[Keys.HEALTH_CONNECT_SYNC_ENABLED] = enabled
         }
     }
 }
