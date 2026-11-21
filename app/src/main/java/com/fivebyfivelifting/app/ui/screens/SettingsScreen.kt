@@ -853,9 +853,10 @@ fun SettingsScreen(
             barWeightLb = prefs.barbellWeightLb,
             unit = unit,
             onDismiss = { editingExercise = null },
-            onSaveWeightDisplay = { newDisplay ->
+            onWeightChangeDisplay = { newDisplay ->
                 onUpdateExerciseWeight(exercise, newDisplay)
-            }
+            },
+            exerciseName = uiState.exerciseDisplayName(exercise)
         )
     }
 }

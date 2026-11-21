@@ -309,9 +309,10 @@ fun HomeScreen(
             barWeightLb = barWeightLb,
             unit = unit,
             onDismiss = { selectedPlateExercise = null },
-            onSaveWeightDisplay = { newDisplayWeight ->
+            onWeightChangeDisplay = { newDisplayWeight ->
                 onUpdateExerciseWeight(exercise, newDisplayWeight)
-            }
+            },
+            exerciseName = uiState.exerciseDisplayName(exercise)
         )
     }
 

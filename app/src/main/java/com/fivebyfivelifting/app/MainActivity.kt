@@ -2,14 +2,19 @@ package com.fivebyfivelifting.app
 
 import android.content.Context
 import android.media.AudioAttributes
+import android.media.AudioFocusRequest
 import android.media.AudioManager
+import android.media.Ringtone
 import android.media.RingtoneManager
 import android.media.ToneGenerator
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
@@ -27,6 +32,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -38,6 +44,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.fivebyfivelifting.app.domain.AlertAudioRoute
+import com.fivebyfivelifting.app.domain.RestAlertAudioPolicy
 import com.fivebyfivelifting.app.ui.StrengthViewModel
 import com.fivebyfivelifting.app.ui.screens.GraphsScreen
 import com.fivebyfivelifting.app.ui.screens.HistoryScreen
@@ -47,7 +55,9 @@ import com.fivebyfivelifting.app.ui.screens.WorkoutScreen
 import com.fivebyfivelifting.app.ui.theme.FiveByFiveLiftingTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 private enum class MainTab(
@@ -64,7 +74,9 @@ private enum class MainTab(
 
 class MainActivity : ComponentActivity() {
 
+    private val alertFocusLock = Any()
     private var activeAlertJob: Job? = null
+    private var activeAudioFocusRequest: AudioFocusRequest? = null
 
     private val viewModel: StrengthViewModel by viewModels {
         val app = application as FiveByFiveLiftingApplication
@@ -78,6 +90,22 @@ class MainActivity : ComponentActivity() {
                 val uiState by viewModel.uiState.collectAsState()
                 val navController = rememberNavController()
                 val snackbarHostState = remember { SnackbarHostState() }
+
+                // Keep the display awake while an active workout session or rest timer is running.
+                val keepScreenOn = RestAlertAudioPolicy.shouldKeepScreenOn(
+                    hasActiveSession = uiState.activeSession != null,
+                    isRestTimerRunning = uiState.restTimer.isRunning
+                )
+                DisposableEffect(keepScreenOn) {
+                    if (keepScreenOn) {
+                        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    } else {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                    onDispose {
+                        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+                    }
+                }
 
                 /**
                  * Deterministic top-level tab navigation:
@@ -136,7 +164,13 @@ class MainActivity : ComponentActivity() {
                                         navigateToTab(MainTab.WORKOUT)
                                     }
                                 },
-                                onUpdateExerciseWeight = viewModel::updateWorkingWeight,
+                                onUpdateExerciseWeight = { exercise, displayWeight ->
+                                    viewModel.updateWorkingWeight(
+                                        exercise = exercise,
+                                        displayWeight = displayWeight,
+                                        showStatusMessage = false
+                                    )
+                                },
                                 onNavigateToSettings = {
                                     navigateToTab(MainTab.SETTINGS)
                                 }
@@ -155,16 +189,28 @@ class MainActivity : ComponentActivity() {
                                     viewModel.startOrResumeWorkout {}
                                 },
                                 onTapSetBubble = { setId ->
+                                    stopActiveAlert()
                                     viewModel.onTapSetBubble(setId) {
                                         playRestFinishedAlert()
                                     }
                                 },
-                                onUpdateExerciseWeight = viewModel::updateWorkingWeight,
-                                onSkipRestTimer = viewModel::stopRestTimer,
+                                onUpdateExerciseWeight = { exercise, displayWeight ->
+                                    viewModel.updateWorkingWeight(
+                                        exercise = exercise,
+                                        displayWeight = displayWeight,
+                                        showStatusMessage = false
+                                    )
+                                },
+                                onSkipRestTimer = {
+                                    stopActiveAlert()
+                                    viewModel.stopRestTimer()
+                                },
                                 onFinishWorkout = {
+                                    stopActiveAlert()
                                     viewModel.finishActiveWorkout {}
                                 },
                                 onDiscardWorkout = {
+                                    stopActiveAlert()
                                     viewModel.discardActiveWorkout {
                                         navigateToTab(MainTab.HOME)
                                     }
@@ -197,7 +243,13 @@ class MainActivity : ComponentActivity() {
                                 onSelectBarbellWeightDisplay = viewModel::setBarbellWeightDisplay,
                                 onSelectRestTimerSeconds = viewModel::setRestTimerSeconds,
                                 onToggleHealthConnectSync = viewModel::setHealthConnectSyncEnabled,
-                                onUpdateExerciseWeight = viewModel::updateWorkingWeight,
+                                onUpdateExerciseWeight = { exercise, displayWeight ->
+                                    viewModel.updateWorkingWeight(
+                                        exercise = exercise,
+                                        displayWeight = displayWeight,
+                                        showStatusMessage = false
+                                    )
+                                },
                                 onToggleAutoSync = viewModel::setAutoSyncEnabled,
                                 onPrepareGoogleSignInIntent = viewModel::prepareGoogleSignInIntent,
                                 onHandleGoogleSignInResult = viewModel::handleGoogleSignInResult,
@@ -214,48 +266,151 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onDestroy() {
+        stopActiveAlert()
+        super.onDestroy()
+    }
+
+    private fun stopActiveAlert() {
+        activeAlertJob?.cancel()
+        activeAlertJob = null
+        val audioManager = applicationContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+        releaseDuckingAudioFocus(audioManager)
+    }
+
+    private fun acquireDuckingAudioFocus(
+        audioManager: AudioManager?,
+        audioAttributes: AudioAttributes
+    ): AudioFocusRequest? {
+        if (audioManager == null) return null
+        val focusChangeListener = AudioManager.OnAudioFocusChangeListener {
+            // Transient alert focus is held briefly while the chime plays, then abandoned.
+        }
+        val request = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN_TRANSIENT_MAY_DUCK)
+            .setAudioAttributes(audioAttributes)
+            .setAcceptsDelayedFocusGain(false)
+            .setWillPauseWhenDucked(false)
+            .setOnAudioFocusChangeListener(focusChangeListener, Handler(Looper.getMainLooper()))
+            .build()
+        val result = runCatching { audioManager.requestAudioFocus(request) }
+            .getOrDefault(AudioManager.AUDIOFOCUS_REQUEST_FAILED)
+        return if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+            synchronized(alertFocusLock) {
+                activeAudioFocusRequest = request
+            }
+            request
+        } else {
+            null
+        }
+    }
+
+    private fun releaseDuckingAudioFocus(
+        audioManager: AudioManager?,
+        target: AudioFocusRequest? = null
+    ) {
+        val toAbandon = synchronized(alertFocusLock) {
+            val current = activeAudioFocusRequest
+            if (target == null) {
+                activeAudioFocusRequest = null
+                current
+            } else if (current === target) {
+                activeAudioFocusRequest = null
+                target
+            } else {
+                null
+            }
+        }
+        if (toAbandon != null && audioManager != null) {
+            runCatching { audioManager.abandonAudioFocusRequest(toAbandon) }
+        }
+    }
+
     /**
-     * Plays an unmistakable ~3.5-second multi-pulse gym timer chime & haptic alert
-     * when the rest timer between sets finishes counting down.
+     * Requests transient ducking audio focus so active media (e.g. Spotify) drops into the
+     * background, then plays a ~3.5-second multi-pulse gym timer chime & haptic alert and
+     * restores background media volume afterward.
      */
     private fun playRestFinishedAlert() {
-        activeAlertJob?.cancel()
+        val previousJob = activeAlertJob
         activeAlertJob = lifecycleScope.launch(Dispatchers.Default) {
-            // 1. Trigger a ~3.2-second multi-pulse vibration waveform
-            runCatching {
-                val vibrator: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    val vm = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
-                    vm?.defaultVibrator
-                } else {
-                    @Suppress("DEPRECATION")
-                    getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
-                }
-                if (vibrator?.hasVibrator() == true) {
-                    val timings = longArrayOf(0L, 450L, 250L, 450L, 250L, 450L, 250L, 650L)
-                    vibrator.vibrate(VibrationEffect.createWaveform(timings, -1))
-                }
+            previousJob?.cancelAndJoin()
+
+            val audioManager = applicationContext.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+            val route = if (audioManager != null) {
+                RestAlertAudioPolicy.chooseRoute(
+                    alarmVolume = audioManager.getStreamVolume(AudioManager.STREAM_ALARM),
+                    alarmMaxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_ALARM),
+                    musicVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC),
+                    musicMaxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC),
+                    isMusicActive = audioManager.isMusicActive
+                )
+            } else {
+                AlertAudioRoute.ALARM_STREAM
             }
 
-            // 2. Play default notification/alarm ringtone alongside a 4-burst gym timer chime for ~3.5 seconds
-            val ringtone = runCatching {
-                val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                    ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                RingtoneManager.getRingtone(applicationContext, uri)?.apply {
-                    audioAttributes = AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ALARM)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                    play()
-                }
-            }.getOrNull()
-
-            val toneGen = runCatching {
-                ToneGenerator(AudioManager.STREAM_ALARM, 100)
-            }.getOrElse {
-                runCatching { ToneGenerator(AudioManager.STREAM_NOTIFICATION, 100) }.getOrNull()
+            val audioUsage = when (route) {
+                AlertAudioRoute.ALARM_STREAM -> AudioAttributes.USAGE_ALARM
+                AlertAudioRoute.MEDIA_STREAM -> AudioAttributes.USAGE_MEDIA
             }
+            val toneStream = when (route) {
+                AlertAudioRoute.ALARM_STREAM -> AudioManager.STREAM_ALARM
+                AlertAudioRoute.MEDIA_STREAM -> AudioManager.STREAM_MUSIC
+            }
+            val alertAttributes = AudioAttributes.Builder()
+                .setUsage(audioUsage)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                .build()
+
+            // 1. Duck background music (e.g., Spotify / podcasts) before sounding the alarm.
+            val focusRequest = acquireDuckingAudioFocus(audioManager, alertAttributes)
+            var vibrator: Vibrator? = null
+            var ringtone: Ringtone? = null
+            var toneGen: ToneGenerator? = null
+            var ringtoneStopped = false
+            var toneGenReleased = false
 
             try {
+                if (focusRequest != null) {
+                    delay(RestAlertAudioPolicy.DUCK_LEAD_IN_DELAY_MS)
+                }
+
+                // 2. Trigger a multi-pulse vibration waveform.
+                runCatching {
+                    vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        val vm = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
+                        vm?.defaultVibrator
+                    } else {
+                        @Suppress("DEPRECATION")
+                        getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator
+                    }
+                    if (vibrator?.hasVibrator() == true) {
+                        val timings = longArrayOf(0L, 450L, 250L, 450L, 250L, 450L, 250L, 650L)
+                        vibrator?.vibrate(VibrationEffect.createWaveform(timings, -1))
+                    }
+                }
+
+                // 3. Play default alarm/notification ringtone + 4-burst gym timer chime.
+                ringtone = runCatching {
+                    val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                        ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+                    RingtoneManager.getRingtone(applicationContext, uri)?.apply {
+                        audioAttributes = alertAttributes
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                            setLooping(true)
+                            setVolume(1.0f)
+                        }
+                        play()
+                    }
+                }.getOrNull()
+
+                toneGen = runCatching {
+                    ToneGenerator(toneStream, ToneGenerator.MAX_VOLUME)
+                }.getOrElse {
+                    runCatching {
+                        ToneGenerator(AudioManager.STREAM_NOTIFICATION, ToneGenerator.MAX_VOLUME)
+                    }.getOrNull()
+                }
+
                 repeat(4) { pulseIndex ->
                     val toneType = if (pulseIndex == 3) {
                         ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD
@@ -265,9 +420,29 @@ class MainActivity : ComponentActivity() {
                     runCatching { toneGen?.startTone(toneType, 500) }
                     delay(850L)
                 }
-            } finally {
+
                 runCatching { ringtone?.stop() }
+                ringtoneStopped = true
                 runCatching { toneGen?.release() }
+                toneGenReleased = true
+
+                // Brief tail before abandoning focus so music fades back up after the final chime.
+                if (focusRequest != null) {
+                    delay(RestAlertAudioPolicy.DUCK_RELEASE_TAIL_DELAY_MS)
+                }
+            } finally {
+                if (!ringtoneStopped) {
+                    runCatching { ringtone?.stop() }
+                }
+                if (!toneGenReleased) {
+                    runCatching { toneGen?.release() }
+                }
+                if (!isActive) {
+                    runCatching { vibrator?.cancel() }
+                }
+                if (focusRequest != null) {
+                    releaseDuckingAudioFocus(audioManager, focusRequest)
+                }
             }
         }
     }

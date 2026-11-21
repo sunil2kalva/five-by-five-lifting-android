@@ -1,7 +1,10 @@
 package com.fivebyfivelifting.app.data.model
 
 import kotlinx.serialization.Serializable
+import java.util.Locale
+import kotlin.math.round
 import kotlin.math.roundToInt
+import kotlin.math.roundToLong
 
 @Serializable
 enum class WorkoutType(
@@ -241,8 +244,8 @@ enum class WeightUnit(
     );
 
     fun fromLb(weightLb: Double): Double = when (this) {
-        LB -> roundToStep(weightLb, 2.5)
-        KG -> roundToStep(weightLb * LB_TO_KG, 1.25)
+        LB -> round(weightLb * 100.0) / 100.0
+        KG -> round(weightLb * LB_TO_KG * 100.0) / 100.0
     }
 
     fun toLb(displayWeight: Double): Double = when (this) {
@@ -253,9 +256,9 @@ enum class WeightUnit(
     fun format(weightLb: Double, includeUnit: Boolean = true): String {
         val converted = fromLb(weightLb)
         val numberStr = if (converted % 1.0 == 0.0) {
-            converted.roundToInt().toString()
+            converted.roundToLong().toString()
         } else {
-            String.format("%.1f", converted).trimEnd('0').trimEnd('.')
+            String.format(Locale.US, "%.2f", converted).trimEnd('0').trimEnd('.')
         }
         return if (includeUnit) "$numberStr $label" else numberStr
     }

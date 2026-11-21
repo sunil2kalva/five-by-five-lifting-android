@@ -230,7 +230,7 @@ class WorkoutRepository(
     suspend fun updateExerciseWorkingWeight(exercise: ExerciseType, newWeightLb: Double) {
         ensureDefaultExerciseStates()
         val current = dao.getExerciseState(exercise) ?: return
-        val clamped = newWeightLb.coerceAtLeast(5.0)
+        val clamped = newWeightLb.coerceIn(0.5, 2500.0)
         dao.upsertExerciseState(
             current.copy(
                 currentWeightLb = clamped,

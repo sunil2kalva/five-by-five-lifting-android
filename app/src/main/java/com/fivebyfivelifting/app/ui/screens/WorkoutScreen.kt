@@ -492,9 +492,10 @@ fun WorkoutScreen(
             barWeightLb = barWeightLb,
             unit = unit,
             onDismiss = { selectedPlateExercise = null },
-            onSaveWeightDisplay = { newDisplay ->
+            onWeightChangeDisplay = { newDisplay ->
                 onUpdateExerciseWeight(exercise, newDisplay)
-            }
+            },
+            exerciseName = uiState.exerciseDisplayName(exercise)
         )
     }
 }

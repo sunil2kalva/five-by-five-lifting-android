@@ -19,6 +19,7 @@ import com.fivebyfivelifting.app.data.repository.WorkoutRepository
 import com.fivebyfivelifting.app.domain.BackupExportManager
 import com.fivebyfivelifting.app.domain.ProgressionEngine
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -71,6 +72,7 @@ class StrengthViewModel(
     private val _completionSummary = MutableStateFlow<WorkoutCompletionSummary?>(null)
     private val _statusMessage = MutableStateFlow<String?>(null)
     private var timerJob: Job? = null
+    private val weightUpdateJobs = mutableMapOf<ExerciseType, Job>()
 
     init {
         viewModelScope.launch {
@@ -327,13 +329,21 @@ class StrengthViewModel(
         }
     }
 
-    fun updateWorkingWeight(exercise: ExerciseType, displayWeight: Double) {
-        viewModelScope.launch {
-            val unit = uiState.value.preferences.weightUnit
-            val weightLb = unit.toLb(displayWeight)
+    fun updateWorkingWeight(
+        exercise: ExerciseType,
+        displayWeight: Double,
+        showStatusMessage: Boolean = true
+    ) {
+        val unit = uiState.value.preferences.weightUnit
+        val weightLb = unit.toLb(displayWeight)
+        val previousJob = weightUpdateJobs[exercise]
+        weightUpdateJobs[exercise] = viewModelScope.launch {
+            previousJob?.cancelAndJoin()
             repository.updateExerciseWorkingWeight(exercise, weightLb)
-            val name = uiState.value.exerciseDisplayName(exercise)
-            _statusMessage.value = "Updated $name to ${unit.format(weightLb)}"
+            if (showStatusMessage) {
+                val name = uiState.value.exerciseDisplayName(exercise)
+                _statusMessage.value = "Updated $name to ${unit.format(weightLb)}"
+            }
         }
     }
 
