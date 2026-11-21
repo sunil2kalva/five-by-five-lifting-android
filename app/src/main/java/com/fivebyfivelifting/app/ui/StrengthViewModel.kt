@@ -27,15 +27,39 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.util.Locale
 
 data class RestTimerState(
     val isRunning: Boolean = false,
-    val remainingSeconds: Int = 0,
+    val elapsedSeconds: Int = 0,
     val totalSeconds: Int = 0,
+    val hasAlerted: Boolean = false,
     val exerciseName: String = "",
     val completedReps: Int = 5,
     val reasonLabel: String = ""
-)
+) {
+    /** True once the target rest time (e.g. 3:00) has elapsed and timer continues counting up. */
+    val isElapsed: Boolean
+        get() = isRunning && totalSeconds > 0 && elapsedSeconds >= totalSeconds
+
+    /** Remaining seconds until target rest time (0 once elapsed). */
+    val remainingSeconds: Int
+        get() = (totalSeconds - elapsedSeconds).coerceAtLeast(0)
+
+    /** Fill progress from 0.0f at 0:00 up to 1.0f at/past the target rest duration. */
+    val progressFraction: Float
+        get() = if (totalSeconds > 0) {
+            (elapsedSeconds.toFloat() / totalSeconds.toFloat()).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
+
+    /** Formats elapsed time as M:SS (e.g. "0:00", "2:59", "3:00", "4:15"). */
+    fun formattedElapsed(): String {
+        val safe = elapsedSeconds.coerceAtLeast(0)
+        return String.format(Locale.US, "%d:%02d", safe / 60, safe % 60)
+    }
+}
 
 data class StrengthUiState(
     val workoutTemplates: Map<WorkoutType, WorkoutTemplateEntity> = emptyMap(),
@@ -244,23 +268,37 @@ class StrengthViewModel(
             _restTimer.value = RestTimerState()
             return
         }
+        val startedAtMs = System.currentTimeMillis()
         _restTimer.value = RestTimerState(
             isRunning = true,
-            remainingSeconds = durationSeconds,
+            elapsedSeconds = 0,
             totalSeconds = durationSeconds,
+            hasAlerted = false,
             exerciseName = exerciseName,
             completedReps = completedReps,
             reasonLabel = reasonLabel
         )
         timerJob = viewModelScope.launch {
-            while (_restTimer.value.remainingSeconds > 0) {
-                delay(1_000L)
-                val nextRemaining = (_restTimer.value.remainingSeconds - 1).coerceAtLeast(0)
-                _restTimer.value = _restTimer.value.copy(remainingSeconds = nextRemaining)
-            }
-            _restTimer.value = _restTimer.value.copy(isRunning = false)
-            if (uiState.value.preferences.soundAndVibrationEnabled) {
-                onTimerFinished()
+            while (true) {
+                delay(250L)
+                val current = _restTimer.value
+                if (!current.isRunning) break
+                val wallElapsed = ((System.currentTimeMillis() - startedAtMs) / 1_000L)
+                    .toInt()
+                    .coerceAtLeast(0)
+                val nextElapsed = maxOf(current.elapsedSeconds, wallElapsed)
+                val reachedTargetNow = !current.hasAlerted &&
+                    current.totalSeconds > 0 &&
+                    nextElapsed >= current.totalSeconds
+                if (nextElapsed != current.elapsedSeconds || reachedTargetNow) {
+                    _restTimer.value = current.copy(
+                        elapsedSeconds = nextElapsed,
+                        hasAlerted = current.hasAlerted || reachedTargetNow
+                    )
+                    if (reachedTargetNow && uiState.value.preferences.soundAndVibrationEnabled) {
+                        onTimerFinished()
+                    }
+                }
             }
         }
     }
@@ -268,11 +306,10 @@ class StrengthViewModel(
     fun adjustRestTimerSeconds(deltaSeconds: Int) {
         val current = _restTimer.value
         if (!current.isRunning) return
-        val newRemaining = (current.remainingSeconds + deltaSeconds).coerceAtLeast(5)
-        val newTotal = maxOf(current.totalSeconds, newRemaining)
+        val newTotal = (current.totalSeconds + deltaSeconds).coerceAtLeast(5)
         _restTimer.value = current.copy(
-            remainingSeconds = newRemaining,
-            totalSeconds = newTotal
+            totalSeconds = newTotal,
+            hasAlerted = if (newTotal > current.elapsedSeconds) false else current.hasAlerted
         )
     }
 
@@ -280,8 +317,8 @@ class StrengthViewModel(
         val current = _restTimer.value
         if (!current.isRunning) return
         _restTimer.value = current.copy(
-            remainingSeconds = 180,
             totalSeconds = 180,
+            hasAlerted = if (180 > current.elapsedSeconds) false else current.hasAlerted,
             reasonLabel = "Heavy set — Resting 3:00 before next set"
         )
     }

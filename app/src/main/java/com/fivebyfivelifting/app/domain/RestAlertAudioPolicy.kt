@@ -4,21 +4,32 @@ package com.fivebyfivelifting.app.domain
  * Audio stream routing decision for the rest-timer completion alert.
  */
 enum class AlertAudioRoute {
-    /** Route through the system alarm stream (default loud timer behavior). */
-    ALARM_STREAM,
+    /**
+     * Navigation/guidance usage (USAGE_ASSISTANCE_NAVIGATION_GUIDANCE).
+     * Mirrors Google Maps turn-by-turn audio: ducks active music (e.g. Spotify) softly into
+     * the background while playing our alert prominently at the user's listening volume on
+     * headphones, Bluetooth earbuds, or speaker.
+     */
+    GUIDANCE_STREAM,
 
     /**
-     * Route through the media stream when alarm volume is muted or far quieter than
-     * active background music (e.g. Spotify on headphones), so the alert stays audible
-     * at the user's listening level while background audio is ducked.
+     * System alarm stream (USAGE_ALARM) used when no music is active and alarm volume
+     * is audible and at least as loud as media volume (e.g. phone media muted).
      */
-    MEDIA_STREAM
+    ALARM_STREAM
 }
 
 object RestAlertAudioPolicy {
-    const val DUCK_LEAD_IN_DELAY_MS: Long = 180L
-    const val DUCK_RELEASE_TAIL_DELAY_MS: Long = 200L
-    private const val MIN_ALARM_TO_MUSIC_RATIO: Float = 0.5f
+    /**
+     * Gives Android's VolumeShaper ducking curve time to ramp background audio down before
+     * the first chime note plays.
+     */
+    const val DUCK_LEAD_IN_DELAY_MS: Long = 350L
+
+    /**
+     * Holds focus briefly after the final chime note ends so music swells back smoothly.
+     */
+    const val DUCK_RELEASE_TAIL_DELAY_MS: Long = 300L
 
     /**
      * Keeps the device screen awake whenever an active workout session or rest timer is active.
@@ -29,7 +40,8 @@ object RestAlertAudioPolicy {
     ): Boolean = hasActiveSession || isRestTimerRunning
 
     /**
-     * Picks the most audible stream for the rest-timer alert without raising device volume.
+     * Picks the route that yields the clearest, most prominent rest-timer alert over any
+     * playing music without muting or stopping playback.
      */
     fun chooseRoute(
         alarmVolume: Int,
@@ -38,22 +50,27 @@ object RestAlertAudioPolicy {
         musicMaxVolume: Int,
         isMusicActive: Boolean
     ): AlertAudioRoute {
-        if (alarmVolume <= 0 || alarmMaxVolume <= 0) {
-            return if (musicVolume > 0 && musicMaxVolume > 0) {
-                AlertAudioRoute.MEDIA_STREAM
+        val hasMusicVolume = musicVolume > 0 && musicMaxVolume > 0
+        val hasAlarmVolume = alarmVolume > 0 && alarmMaxVolume > 0
+
+        if (isMusicActive && hasMusicVolume) {
+            return AlertAudioRoute.GUIDANCE_STREAM
+        }
+        if (!hasAlarmVolume && hasMusicVolume) {
+            return AlertAudioRoute.GUIDANCE_STREAM
+        }
+        if (hasAlarmVolume && !hasMusicVolume) {
+            return AlertAudioRoute.ALARM_STREAM
+        }
+        if (hasAlarmVolume && hasMusicVolume) {
+            val musicRatio = musicVolume.toFloat() / musicMaxVolume.toFloat()
+            val alarmRatio = alarmVolume.toFloat() / alarmMaxVolume.toFloat()
+            return if (musicRatio > alarmRatio) {
+                AlertAudioRoute.GUIDANCE_STREAM
             } else {
                 AlertAudioRoute.ALARM_STREAM
             }
         }
-
-        if (isMusicActive && musicVolume > 0 && musicMaxVolume > 0) {
-            val alarmRatio = alarmVolume.toFloat() / alarmMaxVolume.toFloat()
-            val musicRatio = musicVolume.toFloat() / musicMaxVolume.toFloat()
-            if (alarmRatio < musicRatio * MIN_ALARM_TO_MUSIC_RATIO) {
-                return AlertAudioRoute.MEDIA_STREAM
-            }
-        }
-
         return AlertAudioRoute.ALARM_STREAM
     }
 }

@@ -62,6 +62,7 @@ import com.fivebyfivelifting.app.ui.components.WorkoutBuilderSheet
 import com.fivebyfivelifting.app.ui.components.WorkoutPullDownSelector
 import com.fivebyfivelifting.app.ui.theme.AmberWarning
 import com.fivebyfivelifting.app.ui.theme.EmeraldSuccess
+import com.fivebyfivelifting.app.ui.theme.StrongRed
 
 @Composable
 fun WorkoutScreen(
@@ -279,20 +280,15 @@ fun WorkoutScreen(
             enter = fadeIn() + expandVertically(),
             exit = fadeOut() + shrinkVertically()
         ) {
-            val progress = if (uiState.restTimer.totalSeconds > 0) {
-                (uiState.restTimer.remainingSeconds.toFloat() / uiState.restTimer.totalSeconds.toFloat())
-                    .coerceIn(0f, 1f)
-            } else {
-                0f
-            }
+            val isElapsed = uiState.restTimer.isElapsed
             LinearProgressIndicator(
-                progress = { progress },
+                progress = { uiState.restTimer.progressFraction },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 6.dp)
                     .height(3.dp)
                     .clip(RoundedCornerShape(2.dp)),
-                color = MaterialTheme.colorScheme.primary,
+                color = if (isElapsed) StrongRed else MaterialTheme.colorScheme.secondary,
                 trackColor = MaterialTheme.colorScheme.surfaceVariant
             )
         }
@@ -501,30 +497,38 @@ fun WorkoutScreen(
 }
 
 /**
- * Innovative, ultra-compact HUD Rest Timer Pill displayed inline in the Workout top bar.
- * Shows an animated circular countdown ring + MM:SS timer + tap-to-dismiss (×) with zero preset buttons.
+ * Ultra-compact HUD Rest Timer Pill displayed inline in the Workout top bar.
+ * Counts up from 0:00 toward the target rest time (e.g. 3:00) using normal text, then flips
+ * to red and keeps counting elapsed overtime so the user always sees how long since the last set.
  */
 @Composable
 private fun InlineHeaderRestTimerPill(
     timerState: RestTimerState,
     onDismiss: () -> Unit
 ) {
-    val mins = timerState.remainingSeconds / 60
-    val secs = timerState.remainingSeconds % 60
-    val formatted = String.format("%02d:%02d", mins, secs)
-    val progress = if (timerState.totalSeconds > 0) {
-        (timerState.remainingSeconds.toFloat() / timerState.totalSeconds.toFloat()).coerceIn(0f, 1f)
+    val isElapsed = timerState.isElapsed
+    val formatted = timerState.formattedElapsed()
+    val progress = timerState.progressFraction
+    val containerColor = if (isElapsed) {
+        StrongRed.copy(alpha = 0.20f)
     } else {
-        0f
+        MaterialTheme.colorScheme.surfaceVariant
     }
+    val borderColor = if (isElapsed) {
+        StrongRed
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
+    }
+    val ringColor = if (isElapsed) StrongRed else MaterialTheme.colorScheme.secondary
+    val timeTextColor = if (isElapsed) StrongRed else MaterialTheme.colorScheme.onSurface
 
     Surface(
         shape = RoundedCornerShape(50),
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
+        color = containerColor,
         modifier = Modifier
             .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.65f),
+                width = if (isElapsed) 1.2.dp else 1.dp,
+                color = borderColor,
                 shape = RoundedCornerShape(50)
             )
             .clickable(onClick = onDismiss)
@@ -538,7 +542,7 @@ private fun InlineHeaderRestTimerPill(
                 CircularProgressIndicator(
                     progress = { progress },
                     modifier = Modifier.size(16.dp),
-                    color = MaterialTheme.colorScheme.primary,
+                    color = ringColor,
                     trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
                     strokeWidth = 2.2.dp,
                     strokeCap = StrokeCap.Round
@@ -548,7 +552,7 @@ private fun InlineHeaderRestTimerPill(
                 text = formatted,
                 fontSize = 14.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = MaterialTheme.colorScheme.primary
+                color = timeTextColor
             )
             Spacer(modifier = Modifier.width(2.dp))
             Text(

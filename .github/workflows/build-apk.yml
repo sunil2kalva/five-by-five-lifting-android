@@ -61,12 +61,12 @@ jobs:
             app/signing/fivebyfive.keystore
             app/signing/signing-info.txt
 
-      - name: Publish APK to GitHub Releases (v1.7.0)
+      - name: Publish APK to GitHub Releases (v1.8.0)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.7.0
-          name: "Five By Five Lifting Android v1.7.0 (Keep Screen Awake, Audio Ducking & Instant Weight Editing)"
-          body: "Signed APK for Samsung Galaxy S26+. Keeps the screen awake during active workouts, ducks background audio (e.g. Spotify) during the rest-timer completion chime for clearer playback, and adds direct live-saving weight input with -5/+5 lb quick adjust buttons."
+          tag_name: v1.8.0
+          name: "Five By Five Lifting Android v1.8.0 (Count-Up Overtime Timer & Prominent Ducked Alert Chime)"
+          body: "Signed APK for Samsung Galaxy S26+. Adds a count-up rest timer (0:00 → target rest time → continuous overtime in red) and replaces the soft ringtone beep with a crisp, full-scale synthesized ascending gym chime routed like navigation guidance so Spotify/media ducks softly into the background."
           files: |
             FiveByFiveLifting-s26plus-debug.apk
             app/signing/signing-info.txt

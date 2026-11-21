@@ -3,9 +3,9 @@ package com.fivebyfivelifting.app
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
+import android.media.AudioFormat
 import android.media.AudioManager
-import android.media.Ringtone
-import android.media.RingtoneManager
+import android.media.AudioTrack
 import android.media.ToneGenerator
 import android.os.Build
 import android.os.Bundle
@@ -46,6 +46,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.fivebyfivelifting.app.domain.AlertAudioRoute
 import com.fivebyfivelifting.app.domain.RestAlertAudioPolicy
+import com.fivebyfivelifting.app.domain.RestTimerChimeSynthesizer
 import com.fivebyfivelifting.app.ui.StrengthViewModel
 import com.fivebyfivelifting.app.ui.screens.GraphsScreen
 import com.fivebyfivelifting.app.ui.screens.HistoryScreen
@@ -326,9 +327,10 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Requests transient ducking audio focus so active media (e.g. Spotify) drops into the
-     * background, then plays a ~3.5-second multi-pulse gym timer chime & haptic alert and
-     * restores background media volume afterward.
+     * Requests transient ducking audio focus (like turn-by-turn navigation alerts) so active
+     * media such as Spotify drops softly into the background while still playing, waits for
+     * Android's VolumeShaper duck ramp-down, plays a loud synthesized ascending multi-harmonic
+     * chime at full scale + vibration waveform, and then restores background audio volume.
      */
     private fun playRestFinishedAlert() {
         val previousJob = activeAlertJob
@@ -345,28 +347,58 @@ class MainActivity : ComponentActivity() {
                     isMusicActive = audioManager.isMusicActive
                 )
             } else {
-                AlertAudioRoute.ALARM_STREAM
+                AlertAudioRoute.GUIDANCE_STREAM
             }
 
             val audioUsage = when (route) {
+                AlertAudioRoute.GUIDANCE_STREAM -> AudioAttributes.USAGE_ASSISTANCE_NAVIGATION_GUIDANCE
                 AlertAudioRoute.ALARM_STREAM -> AudioAttributes.USAGE_ALARM
-                AlertAudioRoute.MEDIA_STREAM -> AudioAttributes.USAGE_MEDIA
             }
-            val toneStream = when (route) {
+            val fallbackToneStream = when (route) {
+                AlertAudioRoute.GUIDANCE_STREAM -> AudioManager.STREAM_MUSIC
                 AlertAudioRoute.ALARM_STREAM -> AudioManager.STREAM_ALARM
-                AlertAudioRoute.MEDIA_STREAM -> AudioManager.STREAM_MUSIC
             }
             val alertAttributes = AudioAttributes.Builder()
                 .setUsage(audioUsage)
                 .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
                 .build()
 
-            // 1. Duck background music (e.g., Spotify / podcasts) before sounding the alarm.
+            // Pre-render the chime into a static AudioTrack before ducking so sound hits
+            // full volume immediately after Spotify fades into the background.
+            val pcmSamples = RestTimerChimeSynthesizer.buildChimePcm()
+            val preparedTrack = runCatching {
+                val track = AudioTrack.Builder()
+                    .setAudioAttributes(alertAttributes)
+                    .setAudioFormat(
+                        AudioFormat.Builder()
+                            .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                            .setSampleRate(RestTimerChimeSynthesizer.SAMPLE_RATE_HZ)
+                            .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                            .build()
+                    )
+                    .setBufferSizeInBytes(pcmSamples.size * 2)
+                    .setTransferMode(AudioTrack.MODE_STATIC)
+                    .build()
+                if (track.state == AudioTrack.STATE_INITIALIZED) {
+                    val written = track.write(pcmSamples, 0, pcmSamples.size)
+                    if (written > 0) {
+                        track.setVolume(AudioTrack.getMaxVolume())
+                        track
+                    } else {
+                        track.release()
+                        null
+                    }
+                } else {
+                    track.release()
+                    null
+                }
+            }.getOrNull()
+
+            // 1. Duck background music (e.g. Spotify) softly into the background (still playing).
             val focusRequest = acquireDuckingAudioFocus(audioManager, alertAttributes)
             var vibrator: Vibrator? = null
-            var ringtone: Ringtone? = null
-            var toneGen: ToneGenerator? = null
-            var ringtoneStopped = false
+            var fallbackToneGen: ToneGenerator? = null
+            var trackReleased = false
             var toneGenReleased = false
 
             try {
@@ -374,7 +406,7 @@ class MainActivity : ComponentActivity() {
                     delay(RestAlertAudioPolicy.DUCK_LEAD_IN_DELAY_MS)
                 }
 
-                // 2. Trigger a multi-pulse vibration waveform.
+                // 2. Trigger multi-pulse vibration waveform matching the chime cadence.
                 runCatching {
                     vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                         val vm = getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager
@@ -389,53 +421,49 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // 3. Play default alarm/notification ringtone + 4-burst gym timer chime.
-                ringtone = runCatching {
-                    val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
-                        ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
-                    RingtoneManager.getRingtone(applicationContext, uri)?.apply {
-                        audioAttributes = alertAttributes
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                            setLooping(true)
-                            setVolume(1.0f)
-                        }
-                        play()
-                    }
-                }.getOrNull()
-
-                toneGen = runCatching {
-                    ToneGenerator(toneStream, ToneGenerator.MAX_VOLUME)
-                }.getOrElse {
+                // 3. Play prominent synthesized chime via AudioTrack (or ToneGenerator fallback).
+                if (preparedTrack != null) {
+                    runCatching { preparedTrack.play() }
+                    delay(RestTimerChimeSynthesizer.DURATION_MS.toLong() + 150L)
                     runCatching {
-                        ToneGenerator(AudioManager.STREAM_NOTIFICATION, ToneGenerator.MAX_VOLUME)
-                    }.getOrNull()
-                }
-
-                repeat(4) { pulseIndex ->
-                    val toneType = if (pulseIndex == 3) {
-                        ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD
-                    } else {
-                        ToneGenerator.TONE_PROP_BEEP2
+                        if (preparedTrack.playState == AudioTrack.PLAYSTATE_PLAYING) {
+                            preparedTrack.stop()
+                        }
                     }
-                    runCatching { toneGen?.startTone(toneType, 500) }
-                    delay(850L)
+                    runCatching { preparedTrack.release() }
+                    trackReleased = true
+                } else {
+                    fallbackToneGen = runCatching {
+                        ToneGenerator(fallbackToneStream, ToneGenerator.MAX_VOLUME)
+                    }.getOrNull()
+                    repeat(4) { pulseIndex ->
+                        val toneType = if (pulseIndex == 3) {
+                            ToneGenerator.TONE_CDMA_ALERT_CALL_GUARD
+                        } else {
+                            ToneGenerator.TONE_PROP_BEEP2
+                        }
+                        runCatching { fallbackToneGen?.startTone(toneType, 500) }
+                        delay(700L)
+                    }
+                    runCatching { fallbackToneGen?.release() }
+                    toneGenReleased = true
                 }
 
-                runCatching { ringtone?.stop() }
-                ringtoneStopped = true
-                runCatching { toneGen?.release() }
-                toneGenReleased = true
-
-                // Brief tail before abandoning focus so music fades back up after the final chime.
+                // Brief tail so background music swells back smoothly right after the chime ends.
                 if (focusRequest != null) {
                     delay(RestAlertAudioPolicy.DUCK_RELEASE_TAIL_DELAY_MS)
                 }
             } finally {
-                if (!ringtoneStopped) {
-                    runCatching { ringtone?.stop() }
+                if (preparedTrack != null && !trackReleased) {
+                    runCatching {
+                        if (preparedTrack.playState == AudioTrack.PLAYSTATE_PLAYING) {
+                            preparedTrack.stop()
+                        }
+                    }
+                    runCatching { preparedTrack.release() }
                 }
-                if (!toneGenReleased) {
-                    runCatching { toneGen?.release() }
+                if (fallbackToneGen != null && !toneGenReleased) {
+                    runCatching { fallbackToneGen?.release() }
                 }
                 if (!isActive) {
                     runCatching { vibrator?.cancel() }

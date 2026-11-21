@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.fivebyfivelifting.app.ui.RestTimerState
+import com.fivebyfivelifting.app.ui.theme.StrongRed
 
 @Composable
 fun RestTimerBanner(
@@ -32,14 +33,9 @@ fun RestTimerBanner(
 ) {
     if (!timerState.isRunning && timerState.totalSeconds == 0) return
 
-    val minutes = timerState.remainingSeconds / 60
-    val seconds = timerState.remainingSeconds % 60
-    val formattedTime = String.format("%02d:%02d", minutes, seconds)
-    val progress = if (timerState.totalSeconds > 0) {
-        timerState.remainingSeconds.toFloat() / timerState.totalSeconds.toFloat()
-    } else {
-        0f
-    }
+    val formattedTime = timerState.formattedElapsed()
+    val progress = timerState.progressFraction
+    val isElapsed = timerState.isElapsed
 
     Card(
         modifier = modifier
@@ -63,13 +59,13 @@ fun RestTimerBanner(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = if (timerState.remainingSeconds > 0) {
+                        text = if (!isElapsed) {
                             "Rest Timer • ${timerState.exerciseName}"
                         } else {
                             "Rest Complete! Ready for next set"
                         },
                         style = MaterialTheme.typography.labelLarge,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = if (isElapsed) StrongRed else MaterialTheme.colorScheme.secondary,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
@@ -83,7 +79,7 @@ fun RestTimerBanner(
                     text = formattedTime,
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.ExtraBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = if (isElapsed) StrongRed else MaterialTheme.colorScheme.onSurface
                 )
             }
 
@@ -94,7 +90,7 @@ fun RestTimerBanner(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(6.dp),
-                color = MaterialTheme.colorScheme.primary
+                color = if (isElapsed) StrongRed else MaterialTheme.colorScheme.secondary
             )
 
             Spacer(modifier = Modifier.height(8.dp))
