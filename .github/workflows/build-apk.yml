@@ -1,4 +1,4 @@
-name: Build Five By Five Lifting Android APK
+name: Build Five By Five Lifting Android APK & Release AAB
 
 on:
   push:
@@ -21,7 +21,14 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Ensure Persistent Android Signing Keystore & Export SHA-1
+      - name: Accept Android SDK Licenses
+        run: |
+          SDK_DIR="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          if [ -x "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" ]; then
+            yes | "$SDK_DIR/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null 2>&1 || true
+          fi
+
+      - name: Ensure Persistent Android Debug Signing Keystore & Export SHA-1
         run: |
           mkdir -p app/signing
           if [ ! -f app/signing/fivebyfive.keystore ]; then
@@ -42,32 +49,51 @@ jobs:
             -storepass fivebyfive123 > app/signing/signing-info.txt
           cat app/signing/signing-info.txt
 
+      - name: Decode Optional Play Store Upload Keystore (Secrets)
+        env:
+          RELEASE_KEYSTORE_BASE64: ${{ secrets.RELEASE_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$RELEASE_KEYSTORE_BASE64" ]; then
+            echo "$RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/upload.keystore"
+            echo "RELEASE_KEYSTORE_PATH=$RUNNER_TEMP/upload.keystore" >> "$GITHUB_ENV"
+            echo "Play Store upload keystore decoded into runner temp directory."
+          else
+            echo "No RELEASE_KEYSTORE_BASE64 secret configured; release AAB will use preview signing."
+          fi
+
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v3
         with:
-          gradle-version: '8.9'
+          gradle-version: '8.13'
 
-      - name: Run Unit Tests & Assemble Signed Debug APK
+      - name: Run Unit Tests, Assemble Debug APK & Bundle Minified Release AAB
+        env:
+          RELEASE_KEYSTORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
         run: |
-          gradle testDebugUnitTest assembleDebug --no-daemon
+          gradle testDebugUnitTest assembleDebug bundleRelease --no-daemon
           cp app/build/outputs/apk/debug/app-debug.apk FiveByFiveLifting-s26plus-debug.apk
+          cp app/build/outputs/bundle/release/app-release.aab FiveByFiveLifting-release.aab
 
-      - name: Upload APK & Signing Keystore Artifact
+      - name: Upload APK, Release AAB & Signing Info Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: FiveByFiveLifting-s26plus-debug-apk
           path: |
             FiveByFiveLifting-s26plus-debug.apk
+            FiveByFiveLifting-release.aab
             app/signing/fivebyfive.keystore
             app/signing/signing-info.txt
 
-      - name: Publish APK to GitHub Releases (v1.8.0)
+      - name: Publish Release (v1.9.0)
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v1.8.0
-          name: "Five By Five Lifting Android v1.8.0 (Count-Up Overtime Timer & Prominent Ducked Alert Chime)"
-          body: "Signed APK for Samsung Galaxy S26+. Adds a count-up rest timer (0:00 → target rest time → continuous overtime in red) and replaces the soft ringtone beep with a crisp, full-scale synthesized ascending gym chime routed like navigation guidance so Spotify/media ducks softly into the background."
+          tag_name: v1.9.0
+          name: "Five By Five Lifting Android v1.9.0 (Play Store Ready: API 36, Adaptive Icon, Health Connect 1.1.0 & Release AAB)"
+          body: "Signed debug APK for Galaxy S26+ plus minified release AAB (targetSdk 36 / Android 16). Features adaptive launcher + monochrome themed icons, Health Connect 1.1.0 stable (write-only WRITE_EXERCISE compliance), in-app privacy policy rationale dialog, edge-to-edge dark system bars, and CI-verified R8 release app bundle."
           files: |
             FiveByFiveLifting-s26plus-debug.apk
+            FiveByFiveLifting-release.aab
             app/signing/signing-info.txt
           prerelease: false

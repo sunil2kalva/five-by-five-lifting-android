@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — Five By Five Lifting</title>
+  <style>
+    :root { color-scheme: dark; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #0f172a;
+      color: #f8fafc;
+      line-height: 1.65;
+    }
+    main {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 40px 20px 64px;
+    }
+    h1 { font-size: 2rem; margin: 0 0 8px; }
+    h2 { font-size: 1.2rem; margin-top: 28px; color: #ef4444; }
+    p, li { color: #cbd5e1; }
+    .meta { font-size: 0.9rem; color: #94a3b8; margin-bottom: 24px; }
+    .card {
+      background: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 16px 20px;
+      margin: 18px 0;
+    }
+    a { color: #60a5fa; }
+    code {
+      background: #0b1220;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 0.9em;
+      color: #f8fafc;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Privacy Policy</h1>
+    <div class="meta">
+      <strong>Five By Five Lifting</strong> (<code>com.fivebyfivelifting.app</code>) &bull; Effective Date: November 21, 2026
+    </div>
+
+    <div class="card">
+      <strong>Summary:</strong> Five By Five Lifting stores all workout data locally on your device.
+      We do not operate backend servers, display ads, sell user data, or use third-party analytics
+      or tracking SDKs.
+    </div>
+
+    <h2>1. Data Stored Locally on Your Device</h2>
+    <p>
+      The app stores your workout logs, custom templates, working weights, rest timer preference,
+      and optional bodyweight entries in a local SQLite database and Android DataStore preferences
+      directly on your phone. This data stays on your device unless you explicitly choose to back
+      it up, export it, or sync it to Android Health Connect.
+    </p>
+
+    <h2>2. Optional Android Auto-Backup &amp; Google Drive Export</h2>
+    <p>
+      If you enable Android device backup or manually save/export a JSON or CSV backup file through
+      Android&rsquo;s system file picker or the Google Drive app, that file is transmitted directly
+      between your device and your own chosen storage destination. We never receive a copy of your
+      backup files or have remote access to your Google Drive.
+    </p>
+
+    <h2>3. Optional Google Sign-In</h2>
+    <p>
+      If you choose to tap <em>Sign in with Google</em> in Settings, the app requests only basic
+      account identity information (email address, display name, and account ID) solely to display
+      which account is connected inside the app and pre-select your Google account when saving a
+      backup file to Google Drive. Your profile info is stored only on your device inside app
+      preferences and is never transmitted to our servers. You can sign out at any time from
+      Settings to clear it from the app.
+    </p>
+
+    <h2>4. Optional Android Health Connect Integration</h2>
+    <p>
+      Five By Five Lifting integrates optionally with Android Health Connect using a single
+      <strong>write-only</strong> permission: <code>android.permission.health.WRITE_EXERCISE</code>.
+    </p>
+    <ul>
+      <li><strong>What is written:</strong> Only when you explicitly enable Health Connect sync in
+        Settings, the app writes completed weightlifting sessions (workout title, start and end
+        timestamps, and set/volume summary notes) as <code>ExerciseSessionRecord</code> entries.</li>
+      <li><strong>What is NOT accessed:</strong> The app does <em>not</em> read exercise history,
+        heart rate, sleep, nutrition, or any other records from Health Connect.</li>
+      <li><strong>Limited Use Policy:</strong> Health Connect data is never used for advertising,
+        marketing, profiling, employment eligibility, credit, or insurance underwriting, and is
+        never sold or shared with third parties.</li>
+      <li><strong>Revoking access:</strong> You may disable Health Connect sync in Settings or
+        revoke permission anytime in Android&rsquo;s <em>Health Connect</em> system settings.</li>
+    </ul>
+
+    <h2>5. Third-Party Analytics &amp; Advertising</h2>
+    <p>
+      This app contains <strong>no advertisements</strong> and <strong>no third-party analytics or
+      crash-tracking SDKs</strong>.
+    </p>
+
+    <h2>6. Deleting Your Data</h2>
+    <p>
+      Because all data is stored locally on your device, you have full control over deletion:
+    </p>
+    <ul>
+      <li>Delete individual completed workouts directly from the <em>History</em> tab.</li>
+      <li>Clear signed-in Google account info using <em>Sign Out</em> in Settings.</li>
+      <li>Delete all app data by clearing storage in Android Settings or uninstalling the app.</li>
+      <li>Delete any exported Drive JSON/CSV files directly from your Google Drive, and delete
+        synced exercise records inside Android Health Connect settings.</li>
+    </ul>
+
+    <h2>7. Children&rsquo;s Privacy</h2>
+    <p>
+      This app is intended for general strength training audiences (ages 13+) and does not
+      knowingly collect personal information from children under 13.
+    </p>
+
+    <h2>8. Changes &amp; Contact</h2>
+    <p>
+      Any future updates to this Privacy Policy will be published on this page with an updated
+      effective date. If you have questions or requests regarding privacy, please open an issue or
+      reach out via the developer contact listed on the Google Play Store listing or repository:
+      <a href="https://github.com/sunil2kalva/five-by-five-lifting-android">github.com/sunil2kalva/five-by-five-lifting-android</a>.
+    </p>
+  </main>
+</body>
+</html>

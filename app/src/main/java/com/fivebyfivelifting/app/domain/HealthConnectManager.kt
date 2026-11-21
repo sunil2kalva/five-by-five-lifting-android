@@ -7,17 +7,28 @@ import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ExerciseSessionRecord
+import androidx.health.connect.client.records.metadata.Metadata
 import java.time.Instant
 import java.time.ZoneId
 
 object HealthConnectManager {
 
     const val HEALTH_CONNECT_PACKAGE = "com.google.android.apps.healthdata"
+    const val ACTION_SHOW_PERMISSIONS_RATIONALE = "androidx.health.ACTION_SHOW_PERMISSIONS_RATIONALE"
+    const val ACTION_VIEW_PERMISSION_USAGE = "android.intent.action.VIEW_PERMISSION_USAGE"
+    const val PRIVACY_POLICY_URL =
+        "https://sunil2kalva.github.io/five-by-five-lifting-android/privacy-policy.html"
 
+    /**
+     * Request only the write permission we actually use (`WRITE_EXERCISE`).
+     * Google Play rejects Health Connect submissions declaring unused read permissions.
+     */
     val requiredPermissions: Set<String> = setOf(
-        HealthPermission.getWritePermission(ExerciseSessionRecord::class),
-        HealthPermission.getReadPermission(ExerciseSessionRecord::class)
+        HealthPermission.getWritePermission(ExerciseSessionRecord::class)
     )
+
+    fun isPrivacyRationaleIntent(action: String?): Boolean =
+        action == ACTION_SHOW_PERMISSIONS_RATIONALE || action == ACTION_VIEW_PERMISSION_USAGE
 
     fun createPermissionRequestContract() =
         PermissionController.createRequestPermissionResultContract()
@@ -95,6 +106,7 @@ object HealthConnectManager {
             startZoneOffset = startOffset,
             endTime = endInstant,
             endZoneOffset = endOffset,
+            metadata = Metadata.manualEntry(),
             exerciseType = ExerciseSessionRecord.EXERCISE_TYPE_WEIGHTLIFTING,
             title = "Five By Five Lifting • $workoutTitle",
             notes = summaryNotes

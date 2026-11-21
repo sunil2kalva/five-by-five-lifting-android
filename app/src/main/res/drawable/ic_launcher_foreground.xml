@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Symmetric Olympic barbell centered inside the 66dp adaptive-icon safe zone -->
+    <!-- Barbell shaft & sleeves -->
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M26,44.2 H82 C83.1,44.2 84,45.0 84,46.0 C84,47.0 83.1,47.8 82,47.8 H26 C24.9,47.8 24,47.0 24,46.0 C24,45.0 24.9,44.2 26,44.2 Z" />
+
+    <!-- Subtle inner collars -->
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M37.5,41.8 H40.0 V50.2 H37.5 Z" />
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M68.0,41.8 H70.5 V50.2 H68.0 Z" />
+
+    <!-- Inner heavy 45 lb Olympic plates (StrongRed #EF4444) -->
+    <path
+        android:fillColor="#EF4444"
+        android:pathData="M33.2,32.0 H35.8 C36.6,32.0 37.3,32.7 37.3,33.5 V58.5 C37.3,59.3 36.6,60.0 35.8,60.0 H33.2 C32.4,60.0 31.7,59.3 31.7,58.5 V33.5 C31.7,32.7 32.4,32.0 33.2,32.0 Z" />
+    <path
+        android:fillColor="#EF4444"
+        android:pathData="M72.2,32.0 H74.8 C75.6,32.0 76.3,32.7 76.3,33.5 V58.5 C76.3,59.3 75.6,60.0 74.8,60.0 H72.2 C71.4,60.0 70.7,59.3 70.7,58.5 V33.5 C70.7,32.7 71.4,32.0 72.2,32.0 Z" />
+
+    <!-- Subtle edge bevel highlights on red plates -->
+    <path
+        android:fillColor="#F87171"
+        android:pathData="M32.4,33.5 H33.5 V58.5 H32.4 Z" />
+    <path
+        android:fillColor="#F87171"
+        android:pathData="M71.4,33.5 H72.5 V58.5 H71.4 Z" />
+
+    <!-- Outer 25 lb accent plates (Crisp white) -->
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M28.2,36.8 H30.0 C30.6,36.8 31.1,37.3 31.1,37.9 V54.1 C31.1,54.7 30.6,55.2 30.0,55.2 H28.2 C27.6,55.2 27.1,54.7 27.1,54.1 V37.9 C27.1,37.3 27.6,36.8 28.2,36.8 Z" />
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M78.0,36.8 H79.8 C80.4,36.8 80.9,37.3 80.9,37.9 V54.1 C80.9,54.7 80.4,55.2 79.8,55.2 H78.0 C77.4,55.2 76.9,54.7 76.9,54.1 V37.9 C76.9,37.3 77.4,36.8 78.0,36.8 Z" />
+
+    <!-- Crisp athletic "5 x 5" emblem beneath barbell -->
+    <!-- Left "5" -->
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M40.5,64.2 H48.2 V66.5 H43.0 V68.4 H46.4 C47.6,68.4 48.4,69.2 48.4,70.4 V72.7 C48.4,74.0 47.4,75.0 46.1,75.0 H40.5 V72.7 H45.9 V70.7 H40.5 V64.2 Z" />
+    <!-- Center "×" accent -->
+    <path
+        android:strokeColor="#EF4444"
+        android:strokeWidth="2.1"
+        android:strokeLineCap="round"
+        android:pathData="M51.4,67.0 L56.6,72.2 M56.6,67.0 L51.4,72.2" />
+    <!-- Right "5" -->
+    <path
+        android:fillColor="#F8FAFC"
+        android:pathData="M59.8,64.2 H67.5 V66.5 H62.3 V68.4 H65.7 C66.9,68.4 67.7,69.2 67.7,70.4 V72.7 C67.7,74.0 66.7,75.0 65.4,75.0 H59.8 V72.7 H65.2 V70.7 H59.8 V64.2 Z" />
+</vector>

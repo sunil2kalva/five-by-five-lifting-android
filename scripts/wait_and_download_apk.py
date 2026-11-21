@@ -94,7 +94,7 @@ def push_via_github_api(commit_message: str) -> str:
 
     tree_items = []
     for rel_path in tracked:
-        if not rel_path or rel_path.endswith(".apk"):
+        if not rel_path or rel_path.endswith((".apk", ".aab")):
             continue
         abs_path = os.path.join(OUT_DIR, rel_path)
         if not os.path.isfile(abs_path):
@@ -211,6 +211,12 @@ def main():
                     f.write(apk_data)
                 print(f"SUCCESS! APK downloaded to: {APK_DEST} ({len(apk_data)} bytes)")
                 found_apk = True
+            elif name.endswith(".aab"):
+                aab_dest = os.path.join(OUT_DIR, "FiveByFiveLifting-release.aab")
+                aab_data = zf.read(name)
+                with open(aab_dest, "wb") as f:
+                    f.write(aab_data)
+                print(f"SUCCESS! Release AAB downloaded to: {aab_dest} ({len(aab_data)} bytes)")
             elif name.endswith("fivebyfive.keystore"):
                 ks_dest = os.path.join(signing_dir, "fivebyfive.keystore")
                 with open(ks_dest, "wb") as f:

@@ -1,6 +1,8 @@
 package com.fivebyfivelifting.app
 
 import android.content.Context
+import android.content.Intent
+import android.graphics.Color as AndroidColor
 import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioFormat
@@ -16,7 +18,9 @@ import android.os.Vibrator
 import android.os.VibratorManager
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -26,6 +30,7 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.ShowChart
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
@@ -36,7 +41,9 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.lifecycleScope
@@ -45,9 +52,11 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.fivebyfivelifting.app.domain.AlertAudioRoute
+import com.fivebyfivelifting.app.domain.HealthConnectManager
 import com.fivebyfivelifting.app.domain.RestAlertAudioPolicy
 import com.fivebyfivelifting.app.domain.RestTimerChimeSynthesizer
 import com.fivebyfivelifting.app.ui.StrengthViewModel
+import com.fivebyfivelifting.app.ui.components.PrivacyPolicyDialog
 import com.fivebyfivelifting.app.ui.screens.GraphsScreen
 import com.fivebyfivelifting.app.ui.screens.HistoryScreen
 import com.fivebyfivelifting.app.ui.screens.HomeScreen
@@ -78,6 +87,7 @@ class MainActivity : ComponentActivity() {
     private val alertFocusLock = Any()
     private var activeAlertJob: Job? = null
     private var activeAudioFocusRequest: AudioFocusRequest? = null
+    private var showPrivacyPolicyDialog by mutableStateOf(false)
 
     private val viewModel: StrengthViewModel by viewModels {
         val app = application as FiveByFiveLiftingApplication
@@ -85,7 +95,14 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT),
+            navigationBarStyle = SystemBarStyle.dark(AndroidColor.TRANSPARENT)
+        )
         super.onCreate(savedInstanceState)
+        if (HealthConnectManager.isPrivacyRationaleIntent(intent?.action)) {
+            showPrivacyPolicyDialog = true
+        }
         setContent {
             FiveByFiveLiftingTheme {
                 val uiState by viewModel.uiState.collectAsState()
@@ -130,7 +147,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                if (showPrivacyPolicyDialog) {
+                    PrivacyPolicyDialog(
+                        onDismiss = { showPrivacyPolicyDialog = false }
+                    )
+                }
+
                 Scaffold(
+                    containerColor = MaterialTheme.colorScheme.background,
                     snackbarHost = { SnackbarHost(snackbarHostState) },
                     bottomBar = {
                         NavigationBar {
@@ -258,12 +282,21 @@ class MainActivity : ComponentActivity() {
                                 buildOpenGoogleDriveFileIntent = viewModel::buildOpenGoogleDriveFileIntent,
                                 onLaunchDirectSaveToGoogleDriveApp = viewModel::launchDirectSaveToGoogleDriveApp,
                                 onRestoreFromGoogleDriveUri = viewModel::restoreOrMergeFromGoogleDriveUri,
-                                onExportCsvToUri = viewModel::exportCsvToUri
+                                onExportCsvToUri = viewModel::exportCsvToUri,
+                                onOpenPrivacyPolicy = { showPrivacyPolicyDialog = true }
                             )
                         }
                     }
                 }
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (HealthConnectManager.isPrivacyRationaleIntent(intent.action)) {
+            showPrivacyPolicyDialog = true
         }
     }
 

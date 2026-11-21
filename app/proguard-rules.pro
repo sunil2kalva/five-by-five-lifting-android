@@ -1,5 +1,9 @@
-# Keep Kotlinx Serialization classes and Room entities intact
--keepattributes *Annotation*, InnerClasses
+# Keep stack trace filenames and line numbers for Play Console crash symbol mapping
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
+
+# Keep Kotlinx Serialization classes, enums, and generated serializers
+-keepattributes *Annotation*, InnerClasses, Signature
 -dontnote kotlinx.serialization.AnnotationsKt
 -keepclassmembers class kotlinx.serialization.json.** {
     *** Companion;
@@ -14,3 +18,6 @@
 -keepclasseswithmembers class com.fivebyfivelifting.app.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
+-keep enum com.fivebyfivelifting.app.data.model.** { *; }
+-keep class com.fivebyfivelifting.app.data.local.** { *; }
+-keep class com.fivebyfivelifting.app.domain.AppBackupSnapshot { *; }

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Deep athletic slate background matching Five By Five Lifting theme (#0F172A) -->
+    <path
+        android:fillColor="#0F172A"
+        android:pathData="M0,0H108V108H0Z" />
+    <!-- Subtle inner metallic-slate vignette ring -->
+    <path
+        android:fillColor="#162238"
+        android:pathData="M54,10 A44,44 0 1,0 54,98 A44,44 0 1,0 54,10 Z" />
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#26334D"
+        android:strokeWidth="1.2"
+        android:pathData="M54,19 A35,35 0 1,0 54,89 A35,35 0 1,0 54,19 Z" />
+</vector>

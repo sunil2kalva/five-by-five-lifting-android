@@ -8,14 +8,14 @@ plugins {
 
 android {
     namespace = "com.fivebyfivelifting.app"
-    compileSdk = 34
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.fivebyfivelifting.app"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 9
-        versionName = "1.8.0"
+        targetSdk = 36
+        versionCode = 10
+        versionName = "1.9.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -33,6 +33,24 @@ android {
                 keyPassword = "fivebyfive123"
             }
         }
+        val releaseStorePath = System.getenv("RELEASE_KEYSTORE_PATH")
+        val releaseStorePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+        val releaseKeyAlias = System.getenv("RELEASE_KEY_ALIAS")
+        val releaseKeyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+        if (
+            !releaseStorePath.isNullOrBlank() &&
+            !releaseStorePassword.isNullOrBlank() &&
+            !releaseKeyAlias.isNullOrBlank() &&
+            !releaseKeyPassword.isNullOrBlank() &&
+            file(releaseStorePath).exists()
+        ) {
+            create("release") {
+                storeFile = file(releaseStorePath)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
@@ -40,8 +58,10 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
         release {
-            isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            isMinifyEnabled = true
+            isShrinkResources = true
+            signingConfig = signingConfigs.findByName("release")
+                ?: signingConfigs.getByName("debug")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

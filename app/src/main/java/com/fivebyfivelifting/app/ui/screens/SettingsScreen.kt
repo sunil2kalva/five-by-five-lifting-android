@@ -74,7 +74,8 @@ fun SettingsScreen(
     buildOpenGoogleDriveFileIntent: (String?) -> Intent,
     onLaunchDirectSaveToGoogleDriveApp: (String?, (Intent) -> Unit) -> Unit,
     onRestoreFromGoogleDriveUri: (Uri) -> Unit,
-    onExportCsvToUri: (Uri) -> Unit
+    onExportCsvToUri: (Uri) -> Unit,
+    onOpenPrivacyPolicy: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -553,7 +554,7 @@ fun SettingsScreen(
                 }
 
                 Text(
-                    text = "Default countdown timer started automatically after logging a work set (defaults to 3:00 / 180s):",
+                    text = "Target rest duration started automatically after logging a work set (counts up from 0:00 and highlights red once elapsed; defaults to 3:00 / 180s):",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -839,6 +840,37 @@ fun SettingsScreen(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text("Export Workout History (.CSV)")
+                }
+            }
+        }
+
+        // 5. Privacy & About Card (Play Store / Health Connect transparency)
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text(
+                    text = "Privacy & App Info",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "All workouts stay locally on your device. No ads, no tracking, and Health Connect uses write-only exercise permission.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                OutlinedButton(
+                    onClick = onOpenPrivacyPolicy,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("View Privacy Policy & Data Usage")
                 }
             }
         }
